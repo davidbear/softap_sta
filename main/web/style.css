@@ -1,0 +1,96 @@
+html {
+  font-family: New Times Roman;
+  text-align: center;
+  background-color: #f0f0f0;
+}
+
+h1 {
+  font-size: 1.8rem;
+  color: black;
+}
+
+h2 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #07156d;
+}
+
+.card {
+  background-color: #F8F7F9;
+  ;
+  box-shadow: 2px 2px 12px 1px rgba(140, 140, 140, .5);
+  padding-top: 10px;
+  padding-bottom: 20px;
+}
+
+.topnav {
+  overflow: hidden;
+  background-color: #04296d;
+}
+
+body {
+  margin: 0;
+  margin-top: 100px;
+}
+
+.content {
+  padding: 30px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.button {
+  padding: 15px 50px;
+  font-size: 24px;
+  text-align: center;
+  outline: none;
+  color: #fff;
+  background-color: #0ffa6d;
+  /*green*/
+  border: #0ffa6d;
+  border-radius: 5px;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+
+.button:active {
+  background-color: #fa0f0f;
+  transform: translateY(2px);
+}
+
+.state {
+  font-size: 1.5rem;
+  color: #120707;
+  font-weight: bold;
+}
+
+.container {
+  display: grid;
+  /* Defines a 3-column grid: 1fr for the left and right, and 1fr for the middle. */
+  grid-template-columns: 1fr 1fr 1fr;
+  /* Example for equal 1/3 width */
+  place-items: center;
+  /* Centers content both horizontally and vertically within grid cells */
+  /* You can adjust the fractional units (fr) to define the middle column's width relative to the others.
+			 For a fixed-width middle column centered between two equally sized flanking columns: */
+  /* grid-template-columns: 1fr 10em 1fr;  */
+}
+
+.column {
+  /* Add styling for your columns */
+  padding: 10px;
+  box-sizing: border-box;
+  /* Includes padding and border in the element's total width and height */
+}
+
+.clock {
+  font-size: 1.5rem;
+  color: #fcb0b0;
+  background-color: #030307;
+  font-weight: bold;
+}
