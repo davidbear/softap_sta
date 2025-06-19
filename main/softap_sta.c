@@ -240,6 +240,10 @@ void app_main(void)
     /* Start WiFi */
     ESP_ERROR_CHECK(esp_wifi_start() );
 
+//  Start embedded web server unconditionally
+    httpd_handle_t server = NULL;
+    start_embedded_webserver(&server);
+
     /*
      * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
      * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
@@ -249,22 +253,24 @@ void app_main(void)
                                            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
                                            pdFALSE,
                                            pdFALSE,
-                                           portMAX_DELAY);
+                                           pdMS_TO_TICKS(10000));
+//  Original                               portMAX_DELAY);
 
     /* xEventGroupWaitBits() returns the bits before the call returned,
      * hence we can test which event actually happened. */
-    if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG_STA, "connected to ap SSID:%s password:%s",
-                 EXAMPLE_ESP_WIFI_STA_SSID, EXAMPLE_ESP_WIFI_STA_PASSWD);
-        softap_set_dns_addr(esp_netif_ap,esp_netif_sta);
-    } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI(TAG_STA, "Failed to connect to SSID:%s, password:%s",
-                 EXAMPLE_ESP_WIFI_STA_SSID, EXAMPLE_ESP_WIFI_STA_PASSWD);
-    } else {
-        ESP_LOGE(TAG_STA, "UNEXPECTED EVENT");
-        return;
+    if (bits & WIFI_CONNECTED_BIT)
+    {
+        ESP_LOGI(TAG_STA, "Connected to STA network, setting DNS...");
+        softap_set_dns_addr(esp_netif_ap, esp_netif_sta);
     }
-
+    else if (bits & WIFI_FAIL_BIT)
+    {
+        ESP_LOGW(TAG_STA, "Failed to connect to STA. Continuing in SoftAP-only mode.");
+    }
+    else
+    {
+        ESP_LOGW(TAG_STA, "No STA event received in timeout. Continuing anyway.");
+    }
     /* Set sta as the default interface */
     esp_netif_set_default_netif(esp_netif_sta);
 
@@ -272,8 +278,6 @@ void app_main(void)
     if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK) {
         ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
     }
-    httpd_handle_t server = NULL;
-    start_embedded_webserver(&server);
 
     start_mdns_service();
 }

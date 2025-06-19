@@ -1,4 +1,4 @@
-
+//#include "esp_https_server.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 
@@ -10,8 +10,14 @@ extern const uint8_t style_css_start[]  asm("_binary_style_css_start");
 extern const uint8_t style_css_end[]    asm("_binary_style_css_end");
 extern const uint8_t index_js_start[]   asm("_binary_index_js_start");
 extern const uint8_t index_js_end[]     asm("_binary_index_js_end");
-extern const uint8_t favicon_ico_start[] asm("_binary_web_favicon_ico_start");
-extern const uint8_t favicon_ico_end[]   asm("_binary_web_favicon_ico_end");
+extern const uint8_t favicon_ico_start[] asm("_binary_favicon_ico_start");
+extern const uint8_t favicon_ico_end[]   asm("_binary_favicon_ico_end");
+
+//extern const uint8_t server_crt_start[] asm("_binary_server_crt_start"); //is cert necessary here?
+//extern const uint8_t server_crt_end[]   asm("_binary_server_crt_end");
+//extern const uint8_t server_key_start[] asm("_binary_server_key_start");
+//extern const uint8_t server_key_end[]   asm("_binary_server_key_end");
+
 
 static esp_err_t send_embedded(httpd_req_t *req, const uint8_t *start, const uint8_t *end, const char *type) {
     httpd_resp_set_type(req, type);
@@ -56,6 +62,17 @@ void start_embedded_webserver(httpd_handle_t *server) {
     config.server_port = 80;
 
     esp_err_t ret = httpd_start(server, &config);
+/*
+    httpd_ssl_config_t conf = HTTPD_SSL_CONFIG_DEFAULT();
+    conf.httpd.server_port = 443;
+    conf.servercert = server_crt_start;
+    conf.servercert_len = server_crt_end - server_crt_start;
+    conf.prvtkey_pem = server_key_start;
+    conf.prvtkey_len = server_key_end - server_key_start;
+
+    esp_err_t ret = httpd_ssl_start(server, &conf);
+*/
+
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start server! Error: %s", esp_err_to_name(ret));
         return;
@@ -88,6 +105,7 @@ void start_embedded_webserver(httpd_handle_t *server) {
         .method = HTTP_GET,
         .handler = favicon_handler,
         .user_ctx = NULL};
+
 
     httpd_register_uri_handler(*server, &uri_index);
     httpd_register_uri_handler(*server, &uri_css);
