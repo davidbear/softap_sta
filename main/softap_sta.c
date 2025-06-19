@@ -241,10 +241,12 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_wifi_start() );
 
 //  Start spiffs web server unconditionally
-    init_spiffs();
+    ESP_ERROR_CHECK(init_spiffs());
     httpd_handle_t server = NULL;
-    start_spiffs_webserver(&server);
-
+    server = start_spiffs_webserver(&server);
+    if (server == NULL) {
+        ESP_LOGE(TAG_STA, "Failed to start web server");
+    }
     /*
      * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
      * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).

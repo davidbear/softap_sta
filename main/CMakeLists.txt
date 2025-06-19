@@ -1,5 +1,11 @@
 # Components
-idf_component_register(SRCS "spiffs_file_server.c" "softap_sta.c"
+set(SRCS
+    spiffs_file_server.c
+    softap_sta.c
+    websockets.c
+)
+
+idf_component_register(SRCS ${SRCS}
         INCLUDE_DIRS "."
         REQUIRES 
             esp_http_server 
@@ -8,6 +14,7 @@ idf_component_register(SRCS "spiffs_file_server.c" "softap_sta.c"
             nvs_flash 
             mdns
             spiffs
+            esp_timer
         EMBED_FILES
             cert/server.crt
             cert/server.key
