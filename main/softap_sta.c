@@ -32,7 +32,7 @@
 #include "lwip/sys.h"
 #include "mdns.h"
 
-#include "embedded_file_server.h"
+#include "spiffs_file_server.h"
 
 /* The examples use WiFi configuration that you can set via project configuration menu.
 
@@ -240,9 +240,10 @@ void app_main(void)
     /* Start WiFi */
     ESP_ERROR_CHECK(esp_wifi_start() );
 
-//  Start embedded web server unconditionally
+//  Start spiffs web server unconditionally
+    init_spiffs();
     httpd_handle_t server = NULL;
-    start_embedded_webserver(&server);
+    start_spiffs_webserver(&server);
 
     /*
      * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
