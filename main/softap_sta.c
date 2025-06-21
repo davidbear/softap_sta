@@ -33,6 +33,7 @@
 #include "mdns.h"
 
 #include "spiffs_file_server.h"
+#include "control_led.h"
 
 /* The examples use WiFi configuration that you can set via project configuration menu.
 
@@ -83,7 +84,8 @@ static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
 
 static int s_retry_num = 0;
-
+httpd_handle_t server = NULL;
+int led_state = 0;
 /* FreeRTOS event group to signal when we are connected/disconnected */
 static EventGroupHandle_t s_wifi_event_group;
 
@@ -241,9 +243,16 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_wifi_start() );
 
 //  Start spiffs web server unconditionally
-    init_spiffs();
-    httpd_handle_t server = NULL;
-    start_spiffs_webserver(&server);
+    ESP_ERROR_CHECK(init_spiffs());
+    server = start_spiffs_webserver(&server);
+    if(!server) {
+        ESP_LOGE(TAG_AP,"Failed to start server");
+        return;
+    }
+
+    // Configure LEDs 
+    configure_led();
+    ESP_LOGI(TAG_AP,"Server started and LED configured");
 
     /*
      * Wait until either the connection is established (WIFI_CONNECTED_BIT) or

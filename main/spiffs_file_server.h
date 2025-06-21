@@ -11,8 +11,8 @@
 extern "C" {
 #endif
 
-void start_spiffs_webserver(httpd_handle_t *server);
-void init_spiffs(void);
+httpd_handle_t start_spiffs_webserver(httpd_handle_t *server);
+esp_err_t init_spiffs(void);
 
 #ifdef __cplusplus
 }

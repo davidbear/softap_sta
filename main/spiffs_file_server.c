@@ -1,7 +1,16 @@
 //#include "esp_https_server.h"
 #include "spiffs_file_server.h"
+#include "control_led.h"
 
 static const char *TAG = "SPIFFS_SERVER";
+static bool ws_registered = false;
+
+extern httpd_handle_t server;
+
+struct async_resp_arg {
+    httpd_handle_t hd;
+    int fd;
+};
 
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + 128)
 #define BASE_PATH "/spiffs"
@@ -19,7 +28,13 @@ static const char *get_content_type(const char *filename) {
 
 static esp_err_t file_get_handler(httpd_req_t *req) {
     const char *uri = strcmp(req->uri, "/") == 0 ? "/index.html" : req->uri;
+    char *term = strrchr(uri,'?');
+    if(term != NULL) {
+        ESP_LOGI(TAG, "Truncating: %s", uri);
+        *term='\0';
+    }
 
+    ESP_LOGI(TAG,"Serving: %s",uri);
     char filepath[FILE_PATH_MAX];
     strlcpy(filepath, BASE_PATH, sizeof(filepath));
     strlcat(filepath, uri, sizeof(filepath));
@@ -73,24 +88,199 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
 }
 
 static esp_err_t ws_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "ws_handler: method=%d, URI=%s", req->method, req->uri);
     if (req->method == HTTP_GET) {
         ESP_LOGI(TAG, "WS handshake initiated");
         return ESP_OK; // WebSocket handshake handled internally by the server
     }
+    ESP_LOGW(TAG, "Unexpected WS request method");
     return ESP_FAIL;
 }
 
-void start_spiffs_webserver(httpd_handle_t *server) {
+static void make_send_packet(void *arg, char *buff) 
+{
+    httpd_ws_frame_t ws_pkt;
+    struct async_resp_arg *resp_arg = arg;
+    httpd_handle_t hd = resp_arg->hd;
+
+    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
+    ws_pkt.payload = (uint8_t *)buff;
+    ws_pkt.len = strlen(buff);
+    ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+    ESP_LOGI(TAG, "ws_pkt.payload = '%s'", ws_pkt.payload);
+
+    static size_t max_clients = CONFIG_LWIP_MAX_LISTENING_TCP;
+    size_t fds = max_clients;
+    int client_fds[max_clients];
+
+    esp_err_t ret = httpd_get_client_list(server, &fds, client_fds);
+
+    if (ret != ESP_OK) {
+        ESP_LOGI(TAG,"httpd_get_client_list failed");
+        return;
+    }
+
+    for (int i = 0; i < fds; i++) {
+        int client_info = httpd_ws_get_fd_info(server, client_fds[i]);
+        if (client_info == HTTPD_WS_CLIENT_WEBSOCKET) {
+            httpd_ws_send_frame_async(hd, client_fds[i], &ws_pkt);
+        }
+    }
+}
+
+static void ws_async_send(void *arg)
+{
+    ESP_LOGD(TAG,"ws_async_send");
+    httpd_ws_frame_t ws_pkt;
+    struct async_resp_arg *resp_arg = arg;
+    httpd_handle_t hd = resp_arg->hd;
+//    int fd = resp_arg->fd;
+
+    led_state = !led_state;
+//    gpio_set_level(LED_PIN, led_state);
+    blink_led();
+    
+    char buff[40];
+    memset(buff, 0, sizeof(buff));
+    sprintf(buff, "T%d",led_state);
+    
+    make_send_packet(arg, buff);
+
+    memset(buff, 0, sizeof(buff));
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    long long js_time = tv.tv_sec*1000+tv.tv_usec/1000;
+    sprintf(buff, "time:%lld",js_time);
+
+    make_send_packet(arg, buff);
+    free(arg);
+}
+
+static esp_err_t trigger_async_send(httpd_handle_t handle, httpd_req_t *req)
+{
+    ESP_LOGD(TAG,"trigger_async_send");
+    struct async_resp_arg *resp_arg = malloc(sizeof(struct async_resp_arg));
+    resp_arg->hd = req->handle;
+    resp_arg->fd = httpd_req_to_sockfd(req);
+    return httpd_queue_work(handle, ws_async_send, resp_arg);
+}
+
+esp_err_t handle_ws_req(httpd_req_t *req)
+{
+    ESP_LOGD(TAG,"Entered handle_ws_req");
+    if (req->method == HTTP_GET)
+    {
+        ESP_LOGI(TAG, "Handshake done, the new connection was opened");
+        return ESP_OK;
+    }
+
+    httpd_ws_frame_t ws_pkt;
+    uint8_t *buf = NULL;
+    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
+    ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+    esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
+    ESP_LOGD(TAG,"ws_pkt.payload: %ld",(long int)ws_pkt.payload);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "httpd_ws_recv_frame failed to get frame len with %d", ret);
+        return ret;
+    }
+
+    if (ws_pkt.len)
+    {
+        buf = calloc(1, ws_pkt.len + 1);
+        if (buf == NULL)
+        {
+            ESP_LOGE(TAG, "Failed to calloc memory for buf");
+            return ESP_ERR_NO_MEM;
+        }
+        ws_pkt.payload = buf;
+        ESP_LOGD(TAG,"ws_pkt.payload: %ld",(long int)ws_pkt.payload);
+        ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
+            free(buf);
+            return ret;
+        }
+        ESP_LOGI(TAG, "Got packet with message: %s", ws_pkt.payload);
+    }
+
+    ESP_LOGD(TAG, "frame len is %d", ws_pkt.len);
+
+    if (ws_pkt.type == HTTPD_WS_TYPE_TEXT)
+    { 
+        if(strcmp((char *)ws_pkt.payload, "toggle") == 0)
+        {
+            free(buf);
+            return trigger_async_send(req->handle, req);
+        }
+        else if (!strncmp((char *)ws_pkt.payload, "timeoff:", 5)){
+            int my_offset;
+            my_offset = strtod((char *)ws_pkt.payload+8, NULL);
+            int my_zone = my_offset / 60;
+            char buf_zone[20];
+            sprintf(buf_zone, "GMT%c%02d:%02d",my_zone>=0?'+':'-',abs(my_zone),
+                my_zone*60-my_offset);
+            ESP_LOGI(TAG,"TZ: %s", buf_zone);
+            setenv("TZ", buf_zone, 1);
+            tzset();
+
+        }
+        else if (!strncmp((char *)ws_pkt.payload, "time:", 5)){
+            long long my_time;
+            my_time = strtoll((char *)ws_pkt.payload+5, NULL, 10);
+            free(buf);
+            ESP_LOGI(TAG,"my_time -> %lld", my_time);
+            struct timeval tv;
+            tv.tv_sec = (time_t)(my_time/1000ll);
+            tv.tv_usec = (suseconds_t)(my_time%1000)*1000;
+            settimeofday(&tv, NULL);
+            time_t now;
+            char strftime_buf[64];
+            struct tm timeinfo;
+
+            time(&now);
+            // Set timezone to Chicago Time
+
+            localtime_r(&now, &timeinfo);
+            strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+            ESP_LOGI(TAG, "The current date/time is: %s", strftime_buf);
+//            ESP_LOGI(TAG,"time: %02d:%02d:%02d",)
+        }
+    }
+    return ESP_OK;
+}
+
+httpd_handle_t start_spiffs_webserver(httpd_handle_t *server) {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.stack_size = 8192;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
+#if defined(CONFIG_HTTPD_WS_SUPPORT) && defined(CONFIG_IDF_TARGET_ESP32)
+    config.enable_websocket = true;
+    ESP_LOGI(TAG, "WebSocket support enabled in config");
+#else
+    ESP_LOGW(TAG, "WebSocket support not enabled in SDK");
+#endif
+
     esp_err_t ret = httpd_start(server, &config);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start server: %s", esp_err_to_name(ret));
-        return;
+        return NULL;
     }
-    ESP_LOGI(TAG, "Web server started");
+
+    httpd_uri_t ws_uri = {
+        .uri = "/ws",
+        .method = HTTP_GET,
+        .handler = handle_ws_req,
+        .user_ctx = NULL,
+        .is_websocket = true};
+
+    if (!ws_registered) {
+        ESP_ERROR_CHECK(httpd_register_uri_handler(*server, &ws_uri));
+        ws_registered = true;
+    }
 
     httpd_uri_t file_uri = {
         .uri       = "/*",
@@ -100,25 +290,11 @@ void start_spiffs_webserver(httpd_handle_t *server) {
     };
     httpd_register_uri_handler(*server, &file_uri);
 
-    httpd_uri_t ws_uri = {
-        .uri       = "/ws",
-        .method    = HTTP_GET,
-        .handler   = ws_handler,
-        .user_ctx  = NULL,
-//        .is_websocket = true
-    };
-     httpd_register_uri_handler(*server, &static_uri);
-
-    if (!ws_registered) {
-        httpd_register_uri_handler(*server, &ws_uri);
-        ws_registered = true;
-    }
-
     ESP_LOGI(TAG, "Web server started");
     return *server;
 }
 
-void init_spiffs(void) {
+esp_err_t init_spiffs(void) {
     esp_vfs_spiffs_conf_t conf = {
       .base_path = BASE_PATH,
       .partition_label = NULL,
@@ -130,171 +306,15 @@ void init_spiffs(void) {
 
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mount or format filesystem: %s", esp_err_to_name(ret));
-        return;
+        return ret;
     }
 
     size_t total = 0, used = 0;
     ret = esp_spiffs_info(NULL, &total, &used);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get SPIFFS partition info");
-    } else {
-        ESP_LOGI(TAG, "SPIFFS total: %d, used: %d", total, used);
-    }
-}
-
-
-extern const uint8_t index_html_start[] asm("_binary_index_html_start");
-extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
-extern const uint8_t style_css_start[]  asm("_binary_style_css_start");
-extern const uint8_t style_css_end[]    asm("_binary_style_css_end");
-extern const uint8_t index_js_start[]   asm("_binary_index_js_start");
-extern const uint8_t index_js_end[]     asm("_binary_index_js_end");
-extern const uint8_t favicon_ico_start[] asm("_binary_favicon_ico_start");
-extern const uint8_t favicon_ico_end[]   asm("_binary_favicon_ico_end");
-
-//extern const uint8_t server_crt_start[] asm("_binary_server_crt_start"); //is cert necessary here?
-//extern const uint8_t server_crt_end[]   asm("_binary_server_crt_end");
-//extern const uint8_t server_key_start[] asm("_binary_server_key_start");
-//extern const uint8_t server_key_end[]   asm("_binary_server_key_end");
-
-
-static esp_err_t send_embedded(httpd_req_t *req, const uint8_t *start, const uint8_t *end, const char *type) {
-    httpd_resp_set_type(req, type);
-    return httpd_resp_send(req, (const char *) start, end - start);
-}
-
-static esp_err_t index_handler(httpd_req_t *req) {
-/*
-    char *buff = malloc(index_html_end - index_html_start + 1);
-    strncpy(buff,(char *)index_html_start,index_html_end-index_html_start);
-    buff[index_html_end-index_html_start]='\0';
-*/
-    ESP_LOGI(TAG, "Serving index.html");
-    return send_embedded(req, index_html_start, index_html_end, "text/html; charset=utf-8");
-}
-
-static esp_err_t css_handler(httpd_req_t *req) {
-/*
-    char *buff = malloc(style_css_end - style_css_start + 1);
-    strncpy(buff,(char *)style_css_start,style_css_end-style_css_start);
-    buff[style_css_end-style_css_start]='\0';
-*/
-    ESP_LOGI(TAG, "Serving style.css");
-    return send_embedded(req, style_css_start, style_css_end, "text/css; charset=utf-8");
-}
-
-static esp_err_t js_handler(httpd_req_t *req) {
-    ESP_LOGI(TAG, "Serving index.js");
-    return send_embedded(req, index_js_start, index_js_end, "application/javascript; charset=utf-8");
-}
-
-static esp_err_t favicon_handler(httpd_req_t * req)
-{
-    ESP_LOGI(TAG, "Serving favicon.ico");
-    httpd_resp_set_type(req, "image/x-icon");
-    return httpd_resp_send(req, (const char *)favicon_ico_start,
-                            favicon_ico_end - favicon_ico_start);
-}
-
-/*
-static esp_err_t not_found_handler(httpd_req_t *req) {
-    ESP_LOGW(TAG, "404 Not Found: %s", req->uri);
-    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "URI not found");
+        return ret;
+    } 
+    ESP_LOGI(TAG, "SPIFFS total: %d, used: %d", total, used);
     return ESP_OK;
-}
-*/
-
-static esp_err_t catch_all_handler(httpd_req_t *req) {
-    ESP_LOGW(TAG, "Catch-all: URI=%s, Method=%d", req->uri, req->method);
-
-    // Log headers
-    char value[128];
-    if (httpd_req_get_hdr_value_str(req, "User-Agent", value, sizeof(value)) == ESP_OK)
-        ESP_LOGW(TAG, "User-Agent: %s", value);
-    if (httpd_req_get_hdr_value_str(req, "Content-Type", value, sizeof(value)) == ESP_OK)
-        ESP_LOGW(TAG, "Content-Type: %s", value);
-
-    // If POST, log body
-    if (req->method == HTTP_POST && req->content_len > 0) {
-        char *buf = malloc(req->content_len + 1);
-        if (!buf) return ESP_ERR_NO_MEM;
-
-        int received = httpd_req_recv(req, buf, req->content_len);
-        if (received > 0) {
-            buf[received] = '\0';
-            ESP_LOGW(TAG, "Body: %s", buf);
-        }
-        free(buf);
-    }
-
-    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Resource not found");
-    return ESP_OK;
-}
-
-void start_embedded_webserver(httpd_handle_t *server) {
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.server_port = 80;
-    config.stack_size = 8192;               // Increase stack size
-    config.recv_wait_timeout = 10;          // Increase receive timeout
-    config.send_wait_timeout = 10;          // Increase send timeout
-    config.max_uri_handlers = 10;           // Increase if many endpoints
-    config.uri_match_fn = httpd_uri_match_wildcard; // Support wildcards for URI fallback
-
-    esp_err_t ret = httpd_start(server, &config);
-
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to start server! Error: %s", esp_err_to_name(ret));
-        return;
-    }
-
-    ESP_LOGI(TAG, "Web server started");
-
-    httpd_uri_t uri_index = {
-        .uri = "/",
-        .method = HTTP_GET,
-        .handler = index_handler,
-        .user_ctx = NULL
-    };
-
-    httpd_uri_t uri_css = {
-        .uri = "/style.css",
-        .method = HTTP_GET,
-        .handler = css_handler,
-        .user_ctx = NULL
-    };
-
-    httpd_uri_t uri_js = {
-        .uri = "/index.js",
-        .method = HTTP_GET,
-        .handler = js_handler,
-        .user_ctx = NULL};
-
-    httpd_uri_t uri_favicon = {
-        .uri = "/favicon.ico",
-        .method = HTTP_GET,
-        .handler = favicon_handler,
-        .user_ctx = NULL};
-
-    httpd_uri_t uri_404 = {
-        .uri       = "/*",
-        .method    = HTTP_GET,
-        .handler   = catch_all_handler,
-        .user_ctx  = NULL
-    };
-
-    httpd_uri_t catch_all_post = {
-        .uri       = "/*",
-        .method    = HTTP_POST,  // can't be wildcard, so you'll need to copy this per method
-        .handler   = catch_all_handler,
-        .user_ctx  = NULL
-    };
-
-    httpd_register_uri_handler(*server, &uri_index);
-    httpd_register_uri_handler(*server, &uri_css);
-    httpd_register_uri_handler(*server, &uri_js);
-    httpd_register_uri_handler(*server, &uri_favicon);
-    httpd_register_uri_handler(*server, &uri_404);
-//    httpd_register_uri_handler(*server, &catch_all);
-    httpd_register_uri_handler(*server, &catch_all_post);
-
 }
