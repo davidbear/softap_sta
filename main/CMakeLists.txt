@@ -3,6 +3,7 @@ set(SRCS
     spiffs_file_server.c
     softap_sta.c
     websockets.c
+    timeserver.c
 )
 
 idf_component_register(SRCS ${SRCS}

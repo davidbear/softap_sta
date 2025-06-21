@@ -110,7 +110,18 @@ if (getpeername(sockfd, (struct sockaddr *)&addr, &addr_len) == 0) {
 httpd_handle_t  start_spiffs_webserver(httpd_handle_t *server) {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.stack_size = 8192;
+#if defined(CONFIG_HTTPD_WS_SUPPORT) && defined(CONFIG_IDF_TARGET_ESP32)
+    config.enable_websocket = true;
+#else
+    ESP_LOGW(TAG, "WebSocket support not available in this SDK.");
+#endif
     config.uri_match_fn = httpd_uri_match_wildcard;
+
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ESP_LOGI(TAG, "HTTPD_WS_SUPPORT is defined.");
+#else
+    ESP_LOGW(TAG, "HTTPD_WS_SUPPORT is NOT defined.");
+#endif
 
     esp_err_t ret = httpd_start(server, &config);
     if (ret != ESP_OK) {

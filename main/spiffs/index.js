@@ -1,71 +1,66 @@
-var gateway = `ws://${window.location.hostname}/ws`;
-var websocket;
-var webtime = 0;
-var today = new Date(0);
-window.addEventListener('load', onLoad);
-function initWebSocket() {
-    console.log('Trying to open a WebSocket connection...');
-    websocket = new WebSocket(gateway);
-    websocket.onopen = onOpen;
-    websocket.onclose = onClose;
-    websocket.onmessage = onMessage; // <-- add this line
-}
-function onOpen(event) {
-    console.log('Connection opened');
-}
-function onClose(event) {
-    console.log('Connection closed');
-    setTimeout(initWebSocket, 2000);
-}
-function onMessage(event) {
-    var state;
-    console.log(event.data);
-    let msg = event.data;
-    if (msg == "T1") {
-        state = "ON";
-        document.getElementById('state').innerHTML = state;
-    }
-    else if (msg == "T0") {
-        state = "OFF";
-        document.getElementById('state').innerHTML = state;
-    }
-    if (msg.includes('time:')) {
-        today.setTime(Number.parseInt(msg.substr(5)));
-    }
-    /*state = event.data;*/
-    //            document.getElementById('state').innerHTML = state;
-}
-function onLoad(event) {
+const gateway = `ws://${window.location.hostname}/ws`;
+let websocket;
+let today = new Date(0);
+
+window.addEventListener('load', () => {
     initWebSocket();
-    initButton();
-    startTime();
+    startClock();
+});
+
+function initWebSocket() {
+    console.log("Trying to open a WebSocket connection...");
+    websocket = new WebSocket(gateway);
+
+    websocket.onopen = () => {
+        console.log("WebSocket connection opened.");
+        document.getElementById("button").disabled = false;
+        document.getElementById("button").addEventListener("click", toggle);
+    };
+
+    websocket.onclose = () => {
+        console.log("WebSocket connection closed. Retrying...");
+        document.getElementById("button").disabled = true;
+        setTimeout(initWebSocket, 2000);
+    };
+
+    websocket.onerror = (event) => {
+        console.error("WebSocket error:", event);
+    };
+
+    websocket.onmessage = (event) => {
+        const msg = event.data;
+        console.log("Received:", msg);
+
+        if (msg === "T1") {
+            document.getElementById("state").innerText = "State: ON";
+        } else if (msg === "T0") {
+            document.getElementById("state").innerText = "State: OFF";
+        } else if (msg.startsWith("time:")) {
+            const parsed = Date.parse("1970-01-01T" + msg.slice(5) + "Z");
+            if (!isNaN(parsed)) today.setTime(parsed);
+        }
+    };
 }
-function initButton() {
-    document.getElementById('button').addEventListener('click', toggle);
-}
+
 function toggle() {
-    const d = new Date();
-    let jtime = "timeoff:" + d.getTimezoneOffset();
-    websocket.send(jtime);
-    jtime = "time:" + d.getTime()
-    websocket.send(jtime);
-    websocket.send("toggle");
+    if (websocket.readyState === WebSocket.OPEN) {
+        const d = new Date();
+        websocket.send("timeoff:" + (d.getTimezoneOffset() * 60));
+        websocket.send("time:" + d.getTime());
+        websocket.send("toggle");
+    } else {
+        console.warn("WebSocket not ready. State:", websocket.readyState);
+    }
 }
 
-function startTime() {
-    let h = today.getHours();
-    let m = today.getMinutes();
-    let s = today.getSeconds();
-    h = checkTime(h);
-    m = checkTime(m);
-    s = checkTime(s);
-    document.getElementById('clock').innerHTML = h + ":" + m + ":" + s;
-    //            document.getElementById('t_z').innerHTML = today.getTimezoneOffset();
-    today = new Date(today.valueOf() + 500);
-    setTimeout(startTime, 500);
-}
-
-function checkTime(i) {
-    if (i < 10) { i = "0" + i };  // add zero in front of numbers < 10
-    return i;
+function startClock() {
+    function updateClock() {
+        let h = today.getHours().toString().padStart(2, '0');
+        let m = today.getMinutes().toString().padStart(2, '0');
+        let s = today.getSeconds().toString().padStart(2, '0');
+        document.getElementById("clock").innerText = `${h}:${m}:${s}`;
+        today = new Date(today.valueOf() + 1000);
+        setTimeout(updateClock, 1000);
+    }
+    updateClock();
 }

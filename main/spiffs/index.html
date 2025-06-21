@@ -1,15 +1,13 @@
 <!DOCTYPE HTML>
-<html>
-
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>ESP32 Web Server</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/style.css" />
     <link rel="icon" href="/favicon.ico?v=2" />
-    <title>ESP32 Web Server</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/index.js" defer></script>
 </head>
-
 <body>
     <div class="topnav">
         <h1>ESP32 WebSocket Server</h1>
@@ -18,17 +16,13 @@
         <div class="card">
             <h2>ONBOARD LED GPIO2</h2>
             <div class="container">
-				<div class="column"></div>
-				<div class="clock"><span id="clock">CL:OC:K!</span></div>
-				<div class="column"><span id="t_z"></span></div>
-			</div>
-            <p><button id="button" class="button">Toggle LED</button></p>
-            <p class="state">State: <span id="state">%s</span></p>
+                <div class="column"></div>
+                <div class="clock"><span id="clock">CL:OC:K!</span></div>
+                <div class="column"><span id="t_z"></span></div>
+            </div>
+            <p><button id="button" class="button" disabled>Toggle LED</button></p>
+            <p class="state">State: <span id="state">OFF</span></p>
         </div>
     </div>
-    </div>
-    <script src="/index.js"></script>
-
 </body>
-
 </html>

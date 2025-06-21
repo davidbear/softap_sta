@@ -31,7 +31,9 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "mdns.h"
+#include "esp_http_server.h"
 
+#include "websockets.h"
 #include "spiffs_file_server.h"
 
 /* The examples use WiFi configuration that you can set via project configuration menu.
@@ -195,6 +197,16 @@ void start_mdns_service(void) {
     ESP_ERROR_CHECK(mdns_service_add("ESP Web", "_http", "_tcp", 80, NULL, 0));
 }
 
+httpd_handle_t server;  // declared in your main file or globally
+
+static void start_web_server(void) {
+    if (server != NULL) {
+        register_ws_handler(server);  // ✅ add the /ws route
+    } else {
+        ESP_LOGE("WEB", "Web server not running. Cannot register /ws");
+    }
+}
+
 void app_main(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
@@ -247,6 +259,7 @@ void app_main(void)
     if (server == NULL) {
         ESP_LOGE(TAG_STA, "Failed to start web server");
     }
+    start_web_server();
     /*
      * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
      * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
