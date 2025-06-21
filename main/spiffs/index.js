@@ -12,6 +12,7 @@ function initWebSocket() {
 }
 function onOpen(event) {
     console.log('Connection opened');
+    websocket.send("update");
 }
 function onClose(event) {
     console.log('Connection closed');

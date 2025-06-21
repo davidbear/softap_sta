@@ -263,7 +263,7 @@ void app_main(void)
                                            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
                                            pdFALSE,
                                            pdFALSE,
-                                           pdMS_TO_TICKS(10000));
+                                           pdMS_TO_TICKS(5000));
 //  Original                               portMAX_DELAY);
 
     /* xEventGroupWaitBits() returns the bits before the call returned,

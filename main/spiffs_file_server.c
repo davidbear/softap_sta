@@ -87,16 +87,6 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
     }
 }
 
-static esp_err_t ws_handler(httpd_req_t *req) {
-    ESP_LOGI(TAG, "ws_handler: method=%d, URI=%s", req->method, req->uri);
-    if (req->method == HTTP_GET) {
-        ESP_LOGI(TAG, "WS handshake initiated");
-        return ESP_OK; // WebSocket handshake handled internally by the server
-    }
-    ESP_LOGW(TAG, "Unexpected WS request method");
-    return ESP_FAIL;
-}
-
 static void make_send_packet(void *arg, char *buff) 
 {
     httpd_ws_frame_t ws_pkt;
@@ -131,12 +121,11 @@ static void make_send_packet(void *arg, char *buff)
 static void ws_async_send(void *arg)
 {
     ESP_LOGD(TAG,"ws_async_send");
-    httpd_ws_frame_t ws_pkt;
-    struct async_resp_arg *resp_arg = arg;
-    httpd_handle_t hd = resp_arg->hd;
+//    httpd_ws_frame_t ws_pkt;
+//    struct async_resp_arg *resp_arg = arg;
+//    httpd_handle_t hd = resp_arg->hd;
 //    int fd = resp_arg->fd;
 
-    led_state = !led_state;
 //    gpio_set_level(LED_PIN, led_state);
     blink_led();
     
@@ -212,6 +201,12 @@ esp_err_t handle_ws_req(httpd_req_t *req)
     { 
         if(strcmp((char *)ws_pkt.payload, "toggle") == 0)
         {
+            led_state = !led_state;
+            free(buf);
+            return trigger_async_send(req->handle, req);
+        }
+        if(strcmp((char *)ws_pkt.payload, "update") == 0)
+        {
             free(buf);
             return trigger_async_send(req->handle, req);
         }
@@ -257,7 +252,7 @@ httpd_handle_t start_spiffs_webserver(httpd_handle_t *server) {
     config.stack_size = 8192;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
-#if defined(CONFIG_HTTPD_WS_SUPPORT) && defined(CONFIG_IDF_TARGET_ESP32)
+    #if defined(CONFIG_HTTPD_WS_SUPPORT) && defined(CONFIG_IDF_TARGET_ESP32S3)
     config.enable_websocket = true;
     ESP_LOGI(TAG, "WebSocket support enabled in config");
 #else
