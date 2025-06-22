@@ -9,6 +9,7 @@ extern httpd_handle_t server;
 extern const ip4_addr_t ap_ip_address;
 extern uint8_t led_state;
 extern uint8_t conn_state;
+extern esp_netif_t *g_esp_netif_ap;
 
 struct async_resp_arg {
     httpd_handle_t hd;
@@ -161,6 +162,17 @@ static esp_err_t trigger_async_send(httpd_handle_t handle, httpd_req_t *req)
     return httpd_queue_work(handle, ws_async_send, resp_arg);
 }
 
+void set_conn_state(bool new_state) {
+    conn_state = new_state;
+    if (conn_state) {
+        esp_netif_napt_enable(g_esp_netif_ap);
+        ESP_LOGI("CONN_CTRL", "conn_state ON: Internet sharing enabled");
+    } else {
+        esp_netif_napt_disable(g_esp_netif_ap);
+        ESP_LOGI("CONN_CTRL", "conn_state OFF: Internet sharing disabled");
+    }
+}
+
 esp_err_t handle_ws_req(httpd_req_t *req)
 {
     ESP_LOGD(TAG, "Entered handle_ws_req");
@@ -230,7 +242,9 @@ esp_err_t handle_ws_req(httpd_req_t *req)
         }
 
         if (strncmp(payload, "box:", 4) == 0) {
-            conn_state = strtod(payload + 4, NULL);
+            int my_conn_state = strtod(payload + 4, NULL);
+            set_conn_state(my_conn_state);
+            ESP_LOGI(TAG,"conn_state = %d", conn_state);
             ret = trigger_async_send(req->handle, req);
             goto cleanup;
         }

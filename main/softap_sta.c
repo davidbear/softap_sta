@@ -92,6 +92,9 @@ httpd_handle_t server = NULL;
 uint8_t led_state = false;
 uint8_t conn_state = true;
 
+// Global AP netif pointer (for use in handlers)
+esp_netif_t *g_esp_netif_ap = NULL;
+
 /* FreeRTOS event group to signal when we are connected/disconnected */
 static EventGroupHandle_t s_wifi_event_group;
 
@@ -112,12 +115,31 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         ESP_LOGW(TAG_STA, "STA disconnected. Stopping SNTP.");
         esp_sntp_stop();
+        // NEW: Ensure NAPT is off
+        if (esp_netif_napt_disable(g_esp_netif_ap) == ESP_OK) {
+            ESP_LOGI(TAG_STA, "NAPT disabled after STA disconnect");
+        }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
         start_periodic_sntp();
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+            // NEW: NAT control logic
+        if (conn_state) {
+            if (esp_netif_napt_enable(g_esp_netif_ap) == ESP_OK) {
+                ESP_LOGI(TAG_STA, "NAPT enabled due to conn_state");
+            } else {
+                ESP_LOGW(TAG_STA, "Failed to enable NAPT");
+            }
+        } else {
+            if (esp_netif_napt_disable(g_esp_netif_ap) == ESP_OK) {
+                ESP_LOGI(TAG_STA, "NAPT disabled due to conn_state");
+            } else {
+                ESP_LOGW(TAG_STA, "Failed to disable NAPT");
+            }
+        }
+
     }
 }
 
@@ -252,7 +274,10 @@ void app_main(void)
 
     /* Initialize AP */
     ESP_LOGI(TAG_AP, "ESP_WIFI_MODE_AP");
-    esp_netif_t *esp_netif_ap = wifi_init_softap();
+//    esp_netif_t *esp_netif_ap = wifi_init_softap();
+
+    // Assign the return to global var here (INSIDE function)
+    g_esp_netif_ap = wifi_init_softap();
 
     /* Initialize STA */
     ESP_LOGI(TAG_STA, "ESP_WIFI_MODE_STA");
@@ -290,7 +315,7 @@ void app_main(void)
     if (bits & WIFI_CONNECTED_BIT)
     {
         ESP_LOGI(TAG_STA, "Connected to STA network, setting DNS...");
-        softap_set_dns_addr(esp_netif_ap, esp_netif_sta);
+        softap_set_dns_addr(g_esp_netif_ap, esp_netif_sta);
     }
     else if (bits & WIFI_FAIL_BIT)
     {
@@ -304,8 +329,8 @@ void app_main(void)
     esp_netif_set_default_netif(esp_netif_sta);
 
     /* Enable napt on the AP netif */
-    if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK) {
-        ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
+    if (esp_netif_napt_enable(g_esp_netif_ap) != ESP_OK) {
+        ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", g_esp_netif_ap);
     }
 
     start_mdns_service();;

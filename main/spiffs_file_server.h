@@ -10,6 +10,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <lwip/inet.h>
+#if IP_NAPT
+#include "lwip/lwip_napt.h"
+#endif
+#include "esp_netif.h"
 
 #ifdef __cplusplus
 extern "C" {
