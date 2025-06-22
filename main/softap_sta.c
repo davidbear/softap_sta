@@ -83,7 +83,7 @@
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
 const ip4_addr_t ap_ip_address = {
-    .addr = PP_HTONL(LWIP_MAKEU32(192, 168, 5, 1))  // 0xC0A80501
+    .addr = PP_HTONL(LWIP_MAKEU32(1, 5, 168, 192)) //0xC0A80501  // PP_HTONL(LWIP_MAKEU32(192, 168, 5, 1))
 };
 
 static int s_retry_num = 0;
@@ -119,16 +119,16 @@ esp_netif_t *wifi_init_softap(void)
 {
     esp_netif_t *esp_netif_ap = esp_netif_create_default_wifi_ap();
     esp_netif_ip_info_t ip_info;
-    esp_netif_set_ip4_addr(&ip_info.ip, 192, 168, 5, 1);
-//        ip4_addr4(&ap_ip_address), 
-//        ip4_addr3(&ap_ip_address), 
-//       ip4_addr2(&ap_ip_address), 
-//        ip4_addr1(&ap_ip_address));
-    esp_netif_set_ip4_addr(&ip_info.gw, 192, 168, 5, 1);
-//        ip4_addr4(&ap_ip_address), 
-//        ip4_addr3(&ap_ip_address), 
-//        ip4_addr2(&ap_ip_address), 
-//        ip4_addr1(&ap_ip_address));
+    esp_netif_set_ip4_addr(&ip_info.ip, //192, 168, 5, 1);
+        ip4_addr4(&ap_ip_address), 
+        ip4_addr3(&ap_ip_address), 
+        ip4_addr2(&ap_ip_address), 
+        ip4_addr1(&ap_ip_address));
+    esp_netif_set_ip4_addr(&ip_info.gw, //192, 168, 5, 1);
+        ip4_addr4(&ap_ip_address), 
+        ip4_addr3(&ap_ip_address), 
+        ip4_addr2(&ap_ip_address), 
+        ip4_addr1(&ap_ip_address));
 
     esp_netif_set_ip4_addr(&ip_info.netmask, 255, 255, 255, 0);
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(esp_netif_ap));

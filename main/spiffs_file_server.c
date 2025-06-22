@@ -87,16 +87,6 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
     }
 }
 
-static esp_err_t ws_handler(httpd_req_t *req) {
-    ESP_LOGI(TAG, "ws_handler: method=%d, URI=%s", req->method, req->uri);
-    if (req->method == HTTP_GET) {
-        ESP_LOGI(TAG, "WS handshake initiated");
-        return ESP_OK; // WebSocket handshake handled internally by the server
-    }
-    ESP_LOGW(TAG, "Unexpected WS request method");
-    return ESP_FAIL;
-}
-
 static void make_send_packet(void *arg, char *buff) 
 {
     httpd_ws_frame_t ws_pkt;
@@ -131,12 +121,11 @@ static void make_send_packet(void *arg, char *buff)
 static void ws_async_send(void *arg)
 {
     ESP_LOGD(TAG,"ws_async_send");
-    httpd_ws_frame_t ws_pkt;
-    struct async_resp_arg *resp_arg = arg;
-    httpd_handle_t hd = resp_arg->hd;
+//    httpd_ws_frame_t ws_pkt;
+//    struct async_resp_arg *resp_arg = arg;
+//    httpd_handle_t hd = resp_arg->hd;
 //    int fd = resp_arg->fd;
 
-    led_state = !led_state;
 //    gpio_set_level(LED_PIN, led_state);
     blink_led();
     
@@ -176,19 +165,22 @@ esp_err_t handle_ws_req(httpd_req_t *req)
         getpeername(httpd_req_to_sockfd(req), (struct sockaddr *)&addr6, &len);
 
         char ip_str[INET6_ADDRSTRLEN];
+        struct in_addr ipv4 = {.s_addr = 0} ;
         if (IN6_IS_ADDR_V4MAPPED(&addr6.sin6_addr)) {
-            struct in_addr ipv4;
             memcpy(&ipv4, &addr6.sin6_addr.s6_addr[12], sizeof(ipv4));
             inet_ntop(AF_INET, &ipv4, ip_str, sizeof(ip_str));
         } else {
             inet_ntop(AF_INET6, &addr6.sin6_addr, ip_str, sizeof(ip_str));
         }
-
-        ESP_LOGI(TAG, "Client IP: %s", ip_str);
+        char buff[8] = "conn:0";
+        char *result = strstr(ip_str,"192.168.5.");
+        if(result != NULL) buff[5] = '1';
+        
+        ESP_LOGI(TAG, "Client IP:%s AP:%c", ip_str, buff[5]);
 
         httpd_ws_frame_t ip_pkt = {
-            .payload = (uint8_t *)ip_str,
-            .len = strlen(ip_str),
+            .payload = (uint8_t *)buff,
+            .len = strlen(buff),
             .type = HTTPD_WS_TYPE_TEXT,
             .final = true
         };
@@ -235,10 +227,16 @@ esp_err_t handle_ws_req(httpd_req_t *req)
     { 
         if(strcmp((char *)ws_pkt.payload, "toggle") == 0)
         {
+            led_state = !led_state;
             free(buf);
             return trigger_async_send(req->handle, req);
         }
-        else if (!strncmp((char *)ws_pkt.payload, "timeoff:", 5)){
+        if(strcmp((char *)ws_pkt.payload, "update") == 0)
+        {
+            free(buf);
+            return trigger_async_send(req->handle, req);
+        }
+        else if (!strncmp((char *)ws_pkt.payload, "timeoff:", 8)){
             int my_offset;
             my_offset = strtod((char *)ws_pkt.payload+8, NULL);
             int my_zone = my_offset / 60;
@@ -248,7 +246,6 @@ esp_err_t handle_ws_req(httpd_req_t *req)
             ESP_LOGI(TAG,"TZ: %s", buf_zone);
             setenv("TZ", buf_zone, 1);
             tzset();
-
         }
         else if (!strncmp((char *)ws_pkt.payload, "time:", 5)){
             long long my_time;

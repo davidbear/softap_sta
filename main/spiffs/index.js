@@ -2,6 +2,8 @@ var gateway = `ws://${window.location.hostname}/ws`;
 var websocket;
 var webtime = 0;
 var today = new Date(0);
+var AP = "";
+var state;
 window.addEventListener('load', onLoad);
 function initWebSocket() {
     console.log('Trying to open a WebSocket connection...');
@@ -12,39 +14,46 @@ function initWebSocket() {
 }
 function onOpen(event) {
     console.log('Connection opened');
+    websocket.send("update");
 }
 function onClose(event) {
     console.log('Connection closed');
     setTimeout(initWebSocket, 2000);
 }
 function onMessage(event) {
-    var state;
     console.log(event.data);
     let msg = event.data;
     if (msg == "T1") {
         state = "ON";
-        document.getElementById('state').innerHTML = state;
+        document.getElementById('state').innerHTML = state + ':' + AP;
     }
     else if (msg == "T0") {
         state = "OFF";
-        document.getElementById('state').innerHTML = state;
-    }
-    if (msg.includes('time:')) {
+        document.getElementById('state').innerHTML = state + ':' + AP;
+    } else if (msg.includes('time:')) {
         today.setTime(Number.parseInt(msg.substr(5)));
-    } else if (event.data.includes("::FFFF:")) {
-        console.log("Client IP:", event.data); // Likely an IP like `192.168.x.x`
+    } else if (msg.includes("conn:")) {
+        AP = msg.substr(5);
+        console.log('AP connection -> ' + AP);
+        if ((AP == 1 && document.getElementById('connected').checked) ||
+            AP == 0) {
+            document.getElementById('connected').disabled = false;
+        } else {
+            document.getElementById('connected').disabled = true;
+        }
+        document.getElementById('state').innerHTML = state + ':' + AP;
     }
-
-    /*state = event.data;*/
-    //            document.getElementById('state').innerHTML = state;
 }
+
 function onLoad(event) {
     initWebSocket();
     initButton();
     startTime();
 }
+
 function initButton() {
     document.getElementById('button').addEventListener('click', toggle);
+    document.getElementById('connected').addEventListener('change', checking);
 }
 function toggle() {
     const d = new Date();
@@ -53,6 +62,14 @@ function toggle() {
     jtime = "time:" + d.getTime()
     websocket.send(jtime);
     websocket.send("toggle");
+}
+
+function checking() {
+    if(document.getElementById('connected').checked) {
+        websocket.send("box:1");
+    } else {
+        websocket.send("box:0");
+    }
 }
 
 function startTime() {
