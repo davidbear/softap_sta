@@ -64,6 +64,7 @@ void blink_led(void)
     {
         /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
         led_strip_hsv2rgb(hue, 100, LED_BRIGHTNESS, &red, &green, &blue);
+        ESP_LOGI(TAG,"red:%02lx green:%02lx blue:%02lx", red, green, blue);
         led_strip_set_pixel(led_strip, 0, red, green, blue);
         /* Refresh the strip to send data */
         led_strip_refresh(led_strip);
@@ -73,6 +74,7 @@ void blink_led(void)
         /* Set all LED off to clear all pixels */
         led_strip_clear(led_strip);
         hue += 6;
+        hue %= 360;
     }
 }
 

@@ -91,6 +91,7 @@ static int s_retry_num = 0;
 httpd_handle_t server = NULL;
 uint8_t led_state = false;
 uint8_t conn_state = true;
+bool sta_state = false;
 
 // Global AP netif pointer (for use in handlers)
 esp_netif_t *g_esp_netif_ap = NULL;
@@ -114,6 +115,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         ESP_LOGI(TAG_STA, "Station started");
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         ESP_LOGW(TAG_STA, "STA disconnected. Stopping SNTP.");
+        sta_state = false;
         esp_sntp_stop();
         // NEW: Ensure NAPT is off
         if (esp_netif_napt_disable(g_esp_netif_ap) == ESP_OK) {
@@ -123,6 +125,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
+        sta_state = true;
         start_periodic_sntp();
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
             // NEW: NAT control logic
