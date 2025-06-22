@@ -88,7 +88,9 @@ const ip4_addr_t ap_ip_address = {
 
 static int s_retry_num = 0;
 httpd_handle_t server = NULL;
-int led_state = 0;
+uint8_t led_state = false;
+uint8_t conn_state = true;
+
 /* FreeRTOS event group to signal when we are connected/disconnected */
 static EventGroupHandle_t s_wifi_event_group;
 

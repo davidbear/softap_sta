@@ -7,6 +7,9 @@ static bool ws_registered = false;
 
 extern httpd_handle_t server;
 extern const ip4_addr_t ap_ip_address;
+extern uint8_t led_state;
+extern uint8_t conn_state;
+
 struct async_resp_arg {
     httpd_handle_t hd;
     int fd;
@@ -130,9 +133,13 @@ static void ws_async_send(void *arg)
     blink_led();
     
     char buff[40];
+
     memset(buff, 0, sizeof(buff));
     sprintf(buff, "T%d",led_state);
-    
+    make_send_packet(arg, buff);
+
+    memset(buff, 0, sizeof(buff));
+    sprintf(buff, "conn:%d",conn_state);
     make_send_packet(arg, buff);
 
     memset(buff, 0, sizeof(buff));
@@ -156,6 +163,128 @@ static esp_err_t trigger_async_send(httpd_handle_t handle, httpd_req_t *req)
 
 esp_err_t handle_ws_req(httpd_req_t *req)
 {
+    ESP_LOGD(TAG, "Entered handle_ws_req");
+
+    if (req->method == HTTP_GET) {
+        ESP_LOGI(TAG, "Handshake done, the new connection was opened");
+
+        struct sockaddr_in6 addr6;
+        socklen_t len = sizeof(addr6);
+        getpeername(httpd_req_to_sockfd(req), (struct sockaddr *)&addr6, &len);
+
+        char ip_str[INET6_ADDRSTRLEN] = {0};
+        struct in_addr ipv4 = {.s_addr = 0};
+
+        if (IN6_IS_ADDR_V4MAPPED(&addr6.sin6_addr)) {
+            memcpy(&ipv4, &addr6.sin6_addr.s6_addr[12], sizeof(ipv4));
+            inet_ntop(AF_INET, &ipv4, ip_str, sizeof(ip_str));
+        } else {
+            inet_ntop(AF_INET6, &addr6.sin6_addr, ip_str, sizeof(ip_str));
+        }
+
+        char ap_status[5] = "AP:0";
+        if (strstr(ip_str, "192.168.5.") != NULL) {
+            ap_status[3] = '1';
+        }
+
+        ESP_LOGI(TAG, "Client IP: %s, AP: %c", ip_str, ap_status[3]);
+
+        httpd_ws_frame_t ip_pkt = {
+            .payload = (uint8_t *)ap_status,
+            .len = strlen(ap_status),
+            .type = HTTPD_WS_TYPE_TEXT,
+            .final = true
+        };
+        return httpd_ws_send_frame(req, &ip_pkt);
+    }
+
+    httpd_ws_frame_t ws_pkt = { .type = HTTPD_WS_TYPE_TEXT };
+    esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get frame length: %d", ret);
+        return ret;
+    }
+
+    uint8_t *buf = NULL;
+    if (ws_pkt.len > 0) {
+        buf = calloc(1, ws_pkt.len + 1);
+        if (!buf) {
+            ESP_LOGE(TAG, "Memory allocation for buf failed");
+            return ESP_ERR_NO_MEM;
+        }
+
+        ws_pkt.payload = buf;
+        ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to receive frame: %d", ret);
+            goto cleanup;
+        }
+
+        ESP_LOGI(TAG, "Received message: %s", (char *)ws_pkt.payload);
+
+        const char *payload = (char *)ws_pkt.payload;
+        if (strcmp(payload, "toggle") == 0) {
+            led_state = !led_state;
+            ret = trigger_async_send(req->handle, req);
+            goto cleanup;
+        }
+
+        if (strncmp(payload, "box:", 4) == 0) {
+            conn_state = strtod(payload + 4, NULL);
+            ret = trigger_async_send(req->handle, req);
+            goto cleanup;
+        }
+
+        if (strcmp(payload, "update") == 0) {
+            ret = trigger_async_send(req->handle, req);
+            goto cleanup;
+        }
+
+        if (strncmp(payload, "timeoff:", 8) == 0) {
+            int my_offset = strtod(payload + 8, NULL);
+            if(abs(my_offset) < 6000) {
+                int my_zone = my_offset / 60;
+                char buf_zone[32];
+                sprintf(buf_zone, "GMT%c%02d:%02d",my_zone>=0?'+':'-',abs(my_zone),
+                    my_zone*60-my_offset);
+                ESP_LOGI(TAG, "TZ: %s", buf_zone);
+                setenv("TZ", buf_zone, 1);
+                tzset();
+            } else {
+                char buf_zone[12] = "invalid TZ";
+                ESP_LOGI(TAG, "TZ: %s", buf_zone);
+                setenv("TZ", "GMT+00:00", 1);
+                tzset();
+            }
+            goto cleanup;
+        }
+
+        if (strncmp(payload, "time:", 5) == 0) {
+            long long my_time = strtoll(payload + 5, NULL, 10);
+            struct timeval tv = {
+                .tv_sec = (time_t)(my_time / 1000LL),
+                .tv_usec = (suseconds_t)(my_time % 1000) * 1000
+            };
+            settimeofday(&tv, NULL);
+
+            time_t now;
+            struct tm timeinfo;
+            char strftime_buf[64];
+            time(&now);
+            localtime_r(&now, &timeinfo);
+            strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+            ESP_LOGI(TAG, "The current date/time is: %s", strftime_buf);
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    free(buf);
+    return ret;
+}
+/*
+esp_err_t handle_ws_req(httpd_req_t *req)
+{
     ESP_LOGD(TAG,"Entered handle_ws_req");
     if (req->method == HTTP_GET)
     {
@@ -172,11 +301,11 @@ esp_err_t handle_ws_req(httpd_req_t *req)
         } else {
             inet_ntop(AF_INET6, &addr6.sin6_addr, ip_str, sizeof(ip_str));
         }
-        char buff[8] = "conn:0";
+        char buff[5] = "AP:0";
         char *result = strstr(ip_str,"192.168.5.");
-        if(result != NULL) buff[5] = '1';
+        if(result != NULL) buff[3] = '1';
         
-        ESP_LOGI(TAG, "Client IP:%s AP:%c", ip_str, buff[5]);
+        ESP_LOGI(TAG, "Client IP:%s AP:%c", ip_str, buff[3]);
 
         httpd_ws_frame_t ip_pkt = {
             .payload = (uint8_t *)buff,
@@ -231,6 +360,11 @@ esp_err_t handle_ws_req(httpd_req_t *req)
             free(buf);
             return trigger_async_send(req->handle, req);
         }
+        if (!strncmp((char *)ws_pkt.payload, "box:", 4)){
+            conn_state = strtod((char *)ws_pkt.payload+4, NULL);
+            free(buf);
+            return trigger_async_send(req->handle, req);
+        }
         if(strcmp((char *)ws_pkt.payload, "update") == 0)
         {
             free(buf);
@@ -246,6 +380,7 @@ esp_err_t handle_ws_req(httpd_req_t *req)
             ESP_LOGI(TAG,"TZ: %s", buf_zone);
             setenv("TZ", buf_zone, 1);
             tzset();
+            free(buf);
         }
         else if (!strncmp((char *)ws_pkt.payload, "time:", 5)){
             long long my_time;
@@ -271,6 +406,7 @@ esp_err_t handle_ws_req(httpd_req_t *req)
     }
     return ESP_OK;
 }
+*/
 
 httpd_handle_t start_spiffs_webserver(httpd_handle_t *server) {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();

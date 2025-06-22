@@ -25,24 +25,26 @@ function onMessage(event) {
     let msg = event.data;
     if (msg == "T1") {
         state = "ON";
-        document.getElementById('state').innerHTML = state + ':' + AP;
     }
     else if (msg == "T0") {
         state = "OFF";
-        document.getElementById('state').innerHTML = state + ':' + AP;
     } else if (msg.includes('time:')) {
         today.setTime(Number.parseInt(msg.substr(5)));
-    } else if (msg.includes("conn:")) {
-        AP = msg.substr(5);
-        console.log('AP connection -> ' + AP);
-        if ((AP == 1 && document.getElementById('connected').checked) ||
-            AP == 0) {
-            document.getElementById('connected').disabled = false;
-        } else {
-            document.getElementById('connected').disabled = true;
-        }
-        document.getElementById('state').innerHTML = state + ':' + AP;
+    } else if(msg.includes("conn:")) {
+        if(msg.substr(5) == 1) document.getElementById('connected').checked = true;
+        else document.getElementById('connected').checked = false;
+    } else if (msg.includes("AP:")) {
+        AP = msg.substr(3);
+        console.log('AP connection -> ' + AP );
     }
+    if (AP == 1) {
+        if(document.getElementById('connected').checked) document.getElementById('connected').disabled = false;
+        else document.getElementById('connected').disabled = true;
+    } else {
+        document.getElementById('connected').disabled = false;
+    }
+    document.getElementById('state').innerHTML = state + ':' + AP + ':' +  document.getElementById('connected').checked;
+
 }
 
 function onLoad(event) {
