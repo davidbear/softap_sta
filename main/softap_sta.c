@@ -308,5 +308,5 @@ void app_main(void)
         ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
     }
 
-    start_mdns_service();
+    start_mdns_service();;
 }
