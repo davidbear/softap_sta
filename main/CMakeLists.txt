@@ -1,5 +1,10 @@
 # Components
-idf_component_register(SRCS "spiffs_file_server.c" "softap_sta.c" "control_led.c"
+idf_component_register(
+        SRCS 
+            "spiffs_file_server.c" 
+            "softap_sta.c" 
+            "control_led.c"
+            "timekeeper.c"
         INCLUDE_DIRS "."
         REQUIRES 
             esp_http_server 

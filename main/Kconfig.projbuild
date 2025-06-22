@@ -80,6 +80,13 @@ menu "Example Configuration"
                 bool "WAPI PSK"
         endchoice
 
+        config TIME_SYNC_INTERVAL_H
+            int "Hours between time syncronizations"
+            default 5
+            help
+                Set the Hours between time syncronizations if the device successfully logs into the 
+                LAN Access Point (AP) that connects to the internet.
+
     endmenu
 
     menu "LED Configuration"
