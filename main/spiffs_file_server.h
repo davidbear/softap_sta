@@ -6,6 +6,10 @@
 #include "esp_log.h"
 #include <string.h>
 #include "esp_vfs.h"
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <lwip/inet.h>
 
 #ifdef __cplusplus
 extern "C" {

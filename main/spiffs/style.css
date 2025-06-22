@@ -66,6 +66,12 @@ body {
     font-weight: bold;
 }
 
+.connected {
+    font-size: 0.75 rem;
+    color: #120707;
+    font-weight: bold;
+}
+
 .container {
     display: grid;
     /* Defines a 3-column grid: 1fr for the left and right, and 1fr for the middle. */

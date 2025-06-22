@@ -6,7 +6,7 @@ static const char *TAG = "SPIFFS_SERVER";
 static bool ws_registered = false;
 
 extern httpd_handle_t server;
-
+extern const ip4_addr_t ap_ip_address;
 struct async_resp_arg {
     httpd_handle_t hd;
     int fd;
@@ -171,6 +171,29 @@ esp_err_t handle_ws_req(httpd_req_t *req)
     if (req->method == HTTP_GET)
     {
         ESP_LOGI(TAG, "Handshake done, the new connection was opened");
+        struct sockaddr_in6 addr6;
+        socklen_t len = sizeof(addr6);
+        getpeername(httpd_req_to_sockfd(req), (struct sockaddr *)&addr6, &len);
+
+        char ip_str[INET6_ADDRSTRLEN];
+        if (IN6_IS_ADDR_V4MAPPED(&addr6.sin6_addr)) {
+            struct in_addr ipv4;
+            memcpy(&ipv4, &addr6.sin6_addr.s6_addr[12], sizeof(ipv4));
+            inet_ntop(AF_INET, &ipv4, ip_str, sizeof(ip_str));
+        } else {
+            inet_ntop(AF_INET6, &addr6.sin6_addr, ip_str, sizeof(ip_str));
+        }
+
+        ESP_LOGI(TAG, "Client IP: %s", ip_str);
+
+        httpd_ws_frame_t ip_pkt = {
+            .payload = (uint8_t *)ip_str,
+            .len = strlen(ip_str),
+            .type = HTTPD_WS_TYPE_TEXT,
+            .final = true
+        };
+
+        httpd_ws_send_frame(req, &ip_pkt);
         return ESP_OK;
     }
 

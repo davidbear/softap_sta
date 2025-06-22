@@ -31,7 +31,10 @@ function onMessage(event) {
     }
     if (msg.includes('time:')) {
         today.setTime(Number.parseInt(msg.substr(5)));
+    } else if (event.data.includes("::FFFF:")) {
+        console.log("Client IP:", event.data); // Likely an IP like `192.168.x.x`
     }
+
     /*state = event.data;*/
     //            document.getElementById('state').innerHTML = state;
 }
