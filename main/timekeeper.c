@@ -18,7 +18,7 @@ void initialize_sntp(void)
     ESP_LOGI(TAG, "Initializing SNTP");
     
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    esp_sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);  // Smooth time sync (small adjustments)
+    esp_sntp_set_sync_mode(SNTP_SYNC_MODE_IMMED);  // Smooth time sync (small adjustments)
     esp_sntp_set_time_sync_notification_cb(time_sync_notification_cb);
     esp_sntp_setservername(0, SNTP_SERVER);         // You can set multiple servers if desired
 

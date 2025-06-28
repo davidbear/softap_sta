@@ -1,96 +1,23 @@
 /*
+ * This code is based on a number of example files
+ */
+
+/*
  * SPDX-FileCopyrightText: 2023-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
- */
-/*  WiFi softAP & station Example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
+ * 
+ *  WiFi softAP & station Example
 */
-#include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/event_groups.h"
-#include "esp_mac.h"
-#include "esp_wifi.h"
-#include "esp_event.h"
-#include "esp_log.h"
-#include "esp_netif_net_stack.h"
-#include "esp_netif.h"
-#include "nvs_flash.h"
-#include "lwip/inet.h"
-#include "lwip/netdb.h"
-#include "lwip/sockets.h"
-#if IP_NAPT
-#include "lwip/lwip_napt.h"
-#endif
-#include "lwip/err.h"
-#include "lwip/sys.h"
-#include "mdns.h"
-
-#include "spiffs_file_server.h"
-#include "control_led.h"
-#include "timekeeper.h"
-
-/* The examples use WiFi configuration that you can set via project configuration menu.
-
-   If you'd rather not, just change the below entries to strings with
-   the config you want - ie #define EXAMPLE_ESP_WIFI_STA_SSID "mywifissid"
-*/
-
-/* STA Configuration */
-#define EXAMPLE_ESP_WIFI_STA_SSID           CONFIG_ESP_WIFI_REMOTE_AP_SSID
-#define EXAMPLE_ESP_WIFI_STA_PASSWD         CONFIG_ESP_WIFI_REMOTE_AP_PASSWORD
-#define EXAMPLE_ESP_MAXIMUM_RETRY           CONFIG_ESP_MAXIMUM_STA_RETRY
-
-#if CONFIG_ESP_WIFI_AUTH_OPEN
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_OPEN
-#elif CONFIG_ESP_WIFI_AUTH_WEP
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WEP
-#elif CONFIG_ESP_WIFI_AUTH_WPA_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA2_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA2_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA_WPA2_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA_WPA2_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA3_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA3_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA2_WPA3_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA2_WPA3_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WAPI_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WAPI_PSK
-#endif
-
-/* AP Configuration */
-#define EXAMPLE_ESP_WIFI_AP_SSID            CONFIG_ESP_WIFI_AP_SSID
-#define EXAMPLE_ESP_WIFI_AP_PASSWD          CONFIG_ESP_WIFI_AP_PASSWORD
-#define EXAMPLE_ESP_WIFI_CHANNEL            CONFIG_ESP_WIFI_AP_CHANNEL
-#define EXAMPLE_MAX_STA_CONN                CONFIG_ESP_MAX_STA_CONN_AP
-
-
-/* The event group allows multiple bits for each event, but we only care about two events:
- * - we are connected to the AP with an IP
- * - we failed to connect after the maximum amount of retries */
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
-
-/*DHCP server option*/
-#define DHCPS_OFFER_DNS             0x02
+#include "softap_sta.h"
 
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
-const ip4_addr_t ap_ip_address = {
-    .addr = PP_HTONL(LWIP_MAKEU32(1, 5, 168, 192)) //0xC0A80501  // PP_HTONL(LWIP_MAKEU32(192, 168, 5, 1))
-};
 
 static int s_retry_num = 0;
 httpd_handle_t server = NULL;
-uint8_t led_state = false;
-uint8_t conn_state = true;
+bool led_state = false;
+bool conn_state = true;
 bool sta_state = false;
 
 // Global AP netif pointer (for use in handlers)
@@ -102,53 +29,75 @@ static EventGroupHandle_t s_wifi_event_group;
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
-        wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *) event_data;
-        ESP_LOGI(TAG_AP, "Station "MACSTR" joined, AID=%d",
-                 MAC2STR(event->mac), event->aid);
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED) {
-        wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *) event_data;
-        ESP_LOGI(TAG_AP, "Station "MACSTR" left, AID=%d, reason:%d",
-                 MAC2STR(event->mac), event->aid, event->reason);
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
-        ESP_LOGI(TAG_STA, "Station started");
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        ESP_LOGW(TAG_STA, "STA disconnected. Stopping SNTP.");
-        sta_state = false;
-        esp_sntp_stop();
-        // NEW: Ensure NAPT is off
-        if (esp_netif_napt_disable(g_esp_netif_ap) == ESP_OK) {
-            ESP_LOGI(TAG_STA, "NAPT disabled after STA disconnect");
+    if (event_base == WIFI_EVENT)
+    {
+        switch (event_id)
+        {
+        case WIFI_EVENT_AP_STACONNECTED:
+            wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
+            ESP_LOGI(TAG_AP, "Station " MACSTR " joined, AID=%d",
+                     MAC2STR(event->mac), event->aid);
+            break;
+        case WIFI_EVENT_STA_START:
+            esp_wifi_connect();
+            ESP_LOGI(TAG_STA, "Station started");
+            break;
+        case WIFI_EVENT_STA_DISCONNECTED:
+            ESP_LOGW(TAG_STA, "STA disconnected. Stopping SNTP.");
+            sta_state = false;
+            esp_sntp_stop();
+            // NEW: Ensure NAPT is off
+            if (esp_netif_napt_disable(g_esp_netif_ap) == ESP_OK)
+            {
+                ESP_LOGI(TAG_STA, "NAPT disabled after STA disconnect");
+            }
         }
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
-        ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
-        s_retry_num = 0;
-        sta_state = true;
-        start_periodic_sntp();
-        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+    }
+    else if (event_base == IP_EVENT)
+    {
+        switch (event_id)
+        {
+        case IP_EVENT_STA_GOT_IP:
+            ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+            ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
+            s_retry_num = 0;
+            sta_state = true;
+            start_periodic_sntp();
+            xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
             // NEW: NAT control logic
-        if (conn_state) {
-            if (esp_netif_napt_enable(g_esp_netif_ap) == ESP_OK) {
-                ESP_LOGI(TAG_STA, "NAPT enabled due to conn_state");
-            } else {
-                ESP_LOGW(TAG_STA, "Failed to enable NAPT");
+            if (conn_state)
+            {
+                if (esp_netif_napt_enable(g_esp_netif_ap) == ESP_OK)
+                {
+                    ESP_LOGI(TAG_STA, "NAPT enabled due to conn_state");
+                }
+                else
+                {
+                    ESP_LOGW(TAG_STA, "Failed to enable NAPT");
+                }
             }
-        } else {
-            if (esp_netif_napt_disable(g_esp_netif_ap) == ESP_OK) {
-                ESP_LOGI(TAG_STA, "NAPT disabled due to conn_state");
-            } else {
-                ESP_LOGW(TAG_STA, "Failed to disable NAPT");
+            else
+            {
+                if (esp_netif_napt_disable(g_esp_netif_ap) == ESP_OK)
+                {
+                    ESP_LOGI(TAG_STA, "NAPT disabled due to conn_state");
+                }
+                else
+                {
+                    ESP_LOGW(TAG_STA, "Failed to disable NAPT");
+                }
             }
         }
-
     }
 }
 
 /* Initialize soft AP */
 esp_netif_t *wifi_init_softap(void)
 {
+    const ip4_addr_t ap_ip_address = {
+        .addr = PP_HTONL(LWIP_MAKEU32(1, 5, 168, 192)) 
+    };
+
     esp_netif_t *esp_netif_ap = esp_netif_create_default_wifi_ap();
     esp_netif_ip_info_t ip_info;
     esp_netif_set_ip4_addr(&ip_info.ip, //192, 168, 5, 1);
@@ -197,6 +146,7 @@ esp_netif_t *wifi_init_softap(void)
 esp_netif_t *wifi_init_sta(void)
 {
     esp_netif_t *esp_netif_sta = esp_netif_create_default_wifi_sta();
+    esp_netif_set_hostname(esp_netif_sta, "clr_clk");
 
     wifi_config_t wifi_sta_config = {
         .sta = {
@@ -311,7 +261,6 @@ void app_main(void)
                                            pdFALSE,
                                            pdFALSE,
                                            pdMS_TO_TICKS(10000));
-//  Original                               portMAX_DELAY);
 
     /* xEventGroupWaitBits() returns the bits before the call returned,
      * hence we can test which event actually happened. */

@@ -7,8 +7,8 @@ static bool ws_registered = false;
 
 extern httpd_handle_t server;
 extern const ip4_addr_t ap_ip_address;
-extern uint8_t led_state;
-extern uint8_t conn_state;
+extern bool led_state;
+extern bool conn_state;
 extern bool sta_state;
 extern esp_netif_t *g_esp_netif_ap;
 

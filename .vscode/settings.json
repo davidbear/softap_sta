@@ -1,0 +1,30 @@
+{
+  "idf.port": "/dev/ttyACM0",
+  "idf.openOcdConfigs": [
+    "interface/ftdi/esp32_devkitj_v1.cfg",
+    "target/esp32s3.cfg"
+  ],
+  "idf.flashType": "UART",
+  "idf.adapterSpeed": "2000",
+  "idf.customExtraPaths": "/home/david/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/",
+  "idf.customExtraVars": {
+    "IDF_PATH": "/home/david/esp/v5.4.1/esp-idf",
+    "IDF_TARGET": "esp32s3"
+  },
+  "idf.pythonBinPath": "/usr/bin/python3",
+  "files.associations": {
+    "inet.h": "c",
+    "esp_vfs.h": "c",
+    "manager.h": "c",
+    "esp_event.h": "c",
+    "format": "c",
+    "complex": "c",
+    "fstream": "c",
+    "iomanip": "c",
+    "istream": "c",
+    "ostream": "c",
+    "regex": "c",
+    "*.inc": "c"
+  },
+  "C_Cpp.errorSquiggles": "disabled"
+}
