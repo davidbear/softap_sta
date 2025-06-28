@@ -18,10 +18,8 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "mdns.h"
-
-#include "spiffs_file_server.h"
-#include "control_led.h"
-#include "timekeeper.h"
+#include "wifi_provisioning/manager.h"
+#include "wifi_provisioning/scheme_softap.h"
 
 /* The examples use WiFi configuration that you can set via project configuration menu.
 

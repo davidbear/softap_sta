@@ -5,6 +5,8 @@ idf_component_register(
             "softap_sta.c" 
             "control_led.c"
             "timekeeper.c"
+            "provisioning.c"
+            "nvs_utils.c"
         INCLUDE_DIRS "."
         REQUIRES 
             esp_http_server 
@@ -12,6 +14,8 @@ idf_component_register(
             nvs_flash 
             mdns
             spiffs
+            wifi_provisioning
+            driver
 )
 
 spiffs_create_partition_image(storage ../main/spiffs FLASH_IN_PROJECT)

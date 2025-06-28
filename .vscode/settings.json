@@ -24,7 +24,9 @@
     "istream": "c",
     "ostream": "c",
     "regex": "c",
-    "*.inc": "c"
+    "*.inc": "c",
+    "softap_sta.h": "c",
+    "provisioning.h": "c"
   },
   "C_Cpp.errorSquiggles": "disabled"
 }

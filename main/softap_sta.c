@@ -10,6 +10,11 @@
  *  WiFi softAP & station Example
 */
 #include "softap_sta.h"
+#include "spiffs_file_server.h"
+#include "control_led.h"
+#include "timekeeper.h"
+#include "provisioning.h"
+
 
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
@@ -19,6 +24,8 @@ httpd_handle_t server = NULL;
 bool led_state = false;
 bool conn_state = true;
 bool sta_state = false;
+bool do_prov = false;
+bool provisioned = false;
 
 // Global AP netif pointer (for use in handlers)
 esp_netif_t *g_esp_netif_ap = NULL;
@@ -146,7 +153,10 @@ esp_netif_t *wifi_init_softap(void)
 esp_netif_t *wifi_init_sta(void)
 {
     esp_netif_t *esp_netif_sta = esp_netif_create_default_wifi_sta();
+    assert(esp_netif_sta);
     esp_netif_set_hostname(esp_netif_sta, "clr_clk");
+
+    init_provisioning();
 
     wifi_config_t wifi_sta_config = {
         .sta = {
@@ -157,12 +167,26 @@ esp_netif_t *wifi_init_sta(void)
             /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
              * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
              * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-            * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
+             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
              */
             .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,
             .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
         },
     };
+
+    ESP_ERROR_CHECK(wifi_prov_mgr_is_provisioned(&provisioned));
+    if(provisioned) {
+        memset(&wifi_sta_config, 0, sizeof(wifi_config_t));
+        esp_err_t get_config_ret = esp_wifi_get_config (WIFI_IF_STA, &wifi_sta_config);
+        if(get_config_ret != 0) {
+            ESP_LOGE(TAG_STA,"Error getting provisions -> %d", get_config_ret);
+        }
+        ESP_LOGI(TAG_STA,"Provisioned SSID: %s",wifi_sta_config.sta.ssid);
+        ESP_LOGI(TAG_STA,"Provisioned password: %s",wifi_sta_config.sta.password);
+    }
+    else {
+        ESP_LOGI(TAG_STA,"Not Provisioned using defaults");
+    }
 
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config) );
 
@@ -238,6 +262,9 @@ void app_main(void)
 
     /* Start WiFi */
     ESP_ERROR_CHECK(esp_wifi_start() );
+    const char* old_hostname; 
+    esp_netif_get_hostname(esp_netif_sta, &old_hostname);
+    ESP_LOGI(TAG_STA, "name = %s",old_hostname);
 
 //  Start spiffs web server unconditionally
     ESP_ERROR_CHECK(init_spiffs());
