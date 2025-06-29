@@ -36,6 +36,9 @@ function onMessage(event) {
     } else if (msg.includes("AP:")) {
         AP = msg.substr(3);
         console.log('AP connection -> ' + AP );
+    } else if (msg === "modal:close") {
+        document.getElementById("confirmModal").style.display = "none";
+        document.getElementById("alertModal").style.display = "block";
     }
     if (AP == 1) {
         if(document.getElementById('connected').checked) document.getElementById('connected').disabled = false;
@@ -50,6 +53,7 @@ function onMessage(event) {
 function onLoad(event) {
     initWebSocket();
     initButton();
+    initModalButtons();
     startTime();
 }
 
@@ -57,6 +61,18 @@ function initButton() {
     document.getElementById('button').addEventListener('click', toggle);
     document.getElementById('connected').addEventListener('change', checking);
     document.getElementById('provision').addEventListener('click', provisioner);
+}
+
+function initModalButtons() {
+    document.getElementById('modalYes').addEventListener('click', function () {
+        websocket.send("provision:yes");
+        document.getElementById("confirmModal").style.display = "none";
+        document.getElementById("alertModal").style.display = "block";
+    });
+
+    document.getElementById('modalNo').addEventListener('click', function () {
+        document.getElementById("confirmModal").style.display = "none";
+    });
 }
 
 function toggle() {
@@ -69,7 +85,8 @@ function toggle() {
 }
 
 function provisioner() {
-    location.href = "/haha.html";
+    let modal = document.getElementById("confirmModal");
+    modal.style.display = "block";
 }
 
 function checking() {

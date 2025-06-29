@@ -1,8 +1,9 @@
 //#include "esp_https_server.h"
 #include "spiffs_file_server.h"
 #include "control_led.h"
+#include "nvs_utils.h"
 
-static const char *TAG = "SPIFFS_SERVER";
+static const char *TAG = "SPIffs";
 static bool ws_registered = false;
 
 extern httpd_handle_t server;
@@ -29,36 +30,6 @@ static const char *get_content_type(const char *filename) {
     if (strstr(filename, ".jpg")) return "image/jpeg";
     if (strstr(filename, ".svg")) return "image/svg+xml";
     return "text/plain";
-}
-
-static esp_err_t file_get_str_handler(httpd_req_t *req) {
-    char *begin_str = strrchr(req->uri,'?')+1;
-    if(begin_str==NULL) return ESP_ERR_INVALID_ARG;
-    ESP_LOGI(TAG,"The string: %s",begin_str);
-    const char *uri = "/back.html";
-    char filepath[FILE_PATH_MAX];
-    strlcpy(filepath, BASE_PATH, sizeof(filepath));
-    strlcat(filepath, uri, sizeof(filepath));
-    FILE *file = fopen(filepath, "r");
-    fseek(file, 0, SEEK_END);
-    size_t filesize = ftell(file);
-    rewind(file);
-
-    httpd_resp_set_type(req, get_content_type(filepath));
-    httpd_resp_set_hdr(req, "Cache-Control", "max-age=3600");
-    char len_str[16];
-    snprintf(len_str, sizeof(len_str), "%d", (int)filesize);
-    httpd_resp_set_hdr(req, "Content-Length", len_str);
-    char *buf = malloc(filesize);
-    if (!buf) {
-        fclose(file);
-        return ESP_ERR_NO_MEM;
-    }
-    fread(buf, 1, filesize, file);
-    fclose(file);
-    httpd_resp_send(req, buf, filesize);
-    free(buf);
-    return ESP_OK;
 }
 
 static esp_err_t file_get_handler(httpd_req_t *req) {
@@ -197,9 +168,17 @@ void set_conn_state(bool new_state) {
     conn_state = new_state;
     if (conn_state) {
         esp_netif_napt_enable(g_esp_netif_ap);
+        esp_err_t ret_flag = write_uint8_to_nvs("conn_state", conn_state);
+        if (ret_flag != ESP_OK) {
+            ESP_LOGE(TAG,"conn_state write_uint8_from_nvs error: %d",ret_flag);
+        }
         ESP_LOGI("CONN_CTRL", "conn_state ON: Internet sharing enabled");
     } else {
         esp_netif_napt_disable(g_esp_netif_ap);
+        esp_err_t ret_flag = write_uint8_to_nvs("conn_state", conn_state);
+        if (ret_flag != ESP_OK) {
+            ESP_LOGE(TAG,"conn_state write_uint8_from_nvs error: %d",ret_flag);
+        }
         ESP_LOGI("CONN_CTRL", "conn_state OFF: Internet sharing disabled");
     }
 }
@@ -327,6 +306,24 @@ esp_err_t handle_ws_req(httpd_req_t *req)
             ESP_LOGI(TAG, "The current date/time is: %s", strftime_buf);
             goto cleanup;
         }
+        if (strcmp(payload, "provision:yes") == 0) {
+            ESP_LOGI(TAG, "Provisioning confirmed via WebSocket");
+            esp_err_t ret_flag = write_uint8_to_nvs("do_prov", true);
+            if (ret_flag != ESP_OK) {
+                ESP_LOGE(TAG,"do_prov write_uint8_from_nvs error: %d",ret_flag);
+            }
+            const char *ack_msg = "modal:close";  // Tells client to close modal and return
+            httpd_ws_frame_t ws_response = {
+                .final = true,
+                .fragmented = false,
+                .len = strlen(ack_msg),
+                .payload = (uint8_t *)ack_msg,
+                .type = HTTPD_WS_TYPE_TEXT,
+            };
+            ret = httpd_ws_send_frame(req, &ws_response);
+            free(buf);
+            esp_restart();
+        }
     }
 
 cleanup:
@@ -363,14 +360,6 @@ httpd_handle_t start_spiffs_webserver(httpd_handle_t *server) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(*server, &ws_uri));
         ws_registered = true;
     }
-
-    httpd_uri_t get_file_uri = {
-        .uri       = "/get",
-        .method    = HTTP_GET,
-        .handler   = file_get_str_handler,
-        .user_ctx  = NULL
-    };
-    httpd_register_uri_handler(*server, &get_file_uri);
 
     httpd_uri_t file_uri = {
         .uri       = "/*",

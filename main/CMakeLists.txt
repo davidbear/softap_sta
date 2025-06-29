@@ -15,6 +15,7 @@ idf_component_register(
             mdns
             spiffs
             wifi_provisioning
+#            espressif__qrcode 
             driver
 )
 

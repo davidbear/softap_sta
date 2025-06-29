@@ -237,15 +237,24 @@ void app_main(void)
         conn_state = true;
         ret_flag = write_uint8_to_nvs("conn_state", conn_state);
     } else if (ret_flag != ESP_OK) {
-        ESP_LOGE(TAG_AP,"read_uint8_from_nvs error: %d",ret_flag);
+        ESP_LOGE(TAG_AP,"read/write_uint8_from_nvs error: %d",ret_flag);
         return;
     }
     ESP_LOGI(TAG_STA,"do_prov: %d, conn_state: %d",do_prov, conn_state);
 
+    if(do_prov) {
+        ESP_LOGI(TAG_AP,"Provisioning Begins...");
+        ret_flag = write_uint8_to_nvs("do_prov", false);
+        for(int i=10;i>0;--i) {
+            vTaskDelay(pdMS_TO_TICKS(1000));  // 1 second
+            printf("%d\n",i);
+        }
+        start_provisioning();
+        esp_restart();
+    }
+
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-
 
     /* Initialize event group */
     s_wifi_event_group = xEventGroupCreate();
@@ -327,8 +336,12 @@ void app_main(void)
     esp_netif_set_default_netif(esp_netif_sta);
 
     /* Enable napt on the AP netif */
-    if (esp_netif_napt_enable(g_esp_netif_ap) != ESP_OK) {
-        ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", g_esp_netif_ap);
+    if (conn_state) {
+        if (esp_netif_napt_enable(g_esp_netif_ap) != ESP_OK) {
+            ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", g_esp_netif_ap);
+        }
+    } else {
+        ESP_LOGI(TAG_STA,"Not reconnecting to internet");
     }
 
     start_mdns_service();;

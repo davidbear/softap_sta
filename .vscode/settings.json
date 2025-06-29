@@ -26,7 +26,8 @@
     "regex": "c",
     "*.inc": "c",
     "softap_sta.h": "c",
-    "provisioning.h": "c"
+    "provisioning.h": "c",
+    "spiffs_file_server.h": "c"
   },
   "C_Cpp.errorSquiggles": "disabled"
 }
