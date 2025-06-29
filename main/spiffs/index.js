@@ -56,7 +56,9 @@ function onLoad(event) {
 function initButton() {
     document.getElementById('button').addEventListener('click', toggle);
     document.getElementById('connected').addEventListener('change', checking);
+    document.getElementById('provision').addEventListener('click', provisioner);
 }
+
 function toggle() {
     const d = new Date();
     let jtime = "timeoff:" + d.getTimezoneOffset();
@@ -64,6 +66,10 @@ function toggle() {
     jtime = "time:" + d.getTime()
     websocket.send(jtime);
     websocket.send("toggle");
+}
+
+function provisioner() {
+    location.href = "/haha.html";
 }
 
 function checking() {

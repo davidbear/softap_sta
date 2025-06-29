@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 esp_err_t read_uint8_from_nvs(const char *key, uint8_t *value);
+esp_err_t read_bool_from_nvs(const char *key, bool *value);
 esp_err_t write_uint8_to_nvs(const char *key, uint8_t value);
 
 #ifdef __cplusplus

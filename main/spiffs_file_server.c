@@ -31,6 +31,36 @@ static const char *get_content_type(const char *filename) {
     return "text/plain";
 }
 
+static esp_err_t file_get_str_handler(httpd_req_t *req) {
+    char *begin_str = strrchr(req->uri,'?')+1;
+    if(begin_str==NULL) return ESP_ERR_INVALID_ARG;
+    ESP_LOGI(TAG,"The string: %s",begin_str);
+    const char *uri = "/back.html";
+    char filepath[FILE_PATH_MAX];
+    strlcpy(filepath, BASE_PATH, sizeof(filepath));
+    strlcat(filepath, uri, sizeof(filepath));
+    FILE *file = fopen(filepath, "r");
+    fseek(file, 0, SEEK_END);
+    size_t filesize = ftell(file);
+    rewind(file);
+
+    httpd_resp_set_type(req, get_content_type(filepath));
+    httpd_resp_set_hdr(req, "Cache-Control", "max-age=3600");
+    char len_str[16];
+    snprintf(len_str, sizeof(len_str), "%d", (int)filesize);
+    httpd_resp_set_hdr(req, "Content-Length", len_str);
+    char *buf = malloc(filesize);
+    if (!buf) {
+        fclose(file);
+        return ESP_ERR_NO_MEM;
+    }
+    fread(buf, 1, filesize, file);
+    fclose(file);
+    httpd_resp_send(req, buf, filesize);
+    free(buf);
+    return ESP_OK;
+}
+
 static esp_err_t file_get_handler(httpd_req_t *req) {
     const char *uri = strcmp(req->uri, "/") == 0 ? "/index.html" : req->uri;
     char *term = strrchr(uri,'?');
@@ -111,7 +141,7 @@ static void make_send_packet(void *arg, char *buff)
     esp_err_t ret = httpd_get_client_list(server, &fds, client_fds);
 
     if (ret != ESP_OK) {
-        ESP_LOGI(TAG,"httpd_get_client_list failed");
+        ESP_LOGE(TAG,"httpd_get_client_list failed");
         return;
     }
 
@@ -125,7 +155,7 @@ static void make_send_packet(void *arg, char *buff)
 
 static void ws_async_send(void *arg)
 {
-    ESP_LOGD(TAG,"ws_async_send");
+    ESP_LOGI(TAG,"ws_async_send");
 //    httpd_ws_frame_t ws_pkt;
 //    struct async_resp_arg *resp_arg = arg;
 //    httpd_handle_t hd = resp_arg->hd;
@@ -333,6 +363,14 @@ httpd_handle_t start_spiffs_webserver(httpd_handle_t *server) {
         ESP_ERROR_CHECK(httpd_register_uri_handler(*server, &ws_uri));
         ws_registered = true;
     }
+
+    httpd_uri_t get_file_uri = {
+        .uri       = "/get",
+        .method    = HTTP_GET,
+        .handler   = file_get_str_handler,
+        .user_ctx  = NULL
+    };
+    httpd_register_uri_handler(*server, &get_file_uri);
 
     httpd_uri_t file_uri = {
         .uri       = "/*",

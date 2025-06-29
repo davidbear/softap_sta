@@ -14,6 +14,7 @@
 #include "control_led.h"
 #include "timekeeper.h"
 #include "provisioning.h"
+#include "nvs_utils.h"
 
 
 static const char *TAG_AP = "WiFi SoftAP";
@@ -164,11 +165,6 @@ esp_netif_t *wifi_init_sta(void)
             .password = EXAMPLE_ESP_WIFI_STA_PASSWD,
             .scan_method = WIFI_ALL_CHANNEL_SCAN,
             .failure_retry_cnt = EXAMPLE_ESP_MAXIMUM_RETRY,
-            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
-             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-             */
             .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,
             .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
         },
@@ -217,9 +213,6 @@ void start_mdns_service(void) {
 
 void app_main(void)
 {
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-
     //Initialize NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -227,6 +220,32 @@ void app_main(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+
+    esp_err_t ret_flag = read_bool_from_nvs("do_prov", &do_prov);
+    if(ret_flag != ESP_OK) {
+        if(ret_flag == ESP_ERR_NVS_NOT_FOUND) {
+            do_prov = false;
+            ret_flag = write_uint8_to_nvs("do_prov", do_prov);
+            ESP_LOGI(TAG_AP,"do_prov not found, set to %d", do_prov);
+        } else {
+            ESP_LOGE(TAG_AP,"read_uint8_from_nvs error: %d",ret_flag);
+            return;
+        }
+    }
+    ret_flag = read_bool_from_nvs("conn_state", &conn_state);
+    if(ret_flag == ESP_ERR_NVS_NOT_FOUND ) {
+        conn_state = true;
+        ret_flag = write_uint8_to_nvs("conn_state", conn_state);
+    } else if (ret_flag != ESP_OK) {
+        ESP_LOGE(TAG_AP,"read_uint8_from_nvs error: %d",ret_flag);
+        return;
+    }
+    ESP_LOGI(TAG_STA,"do_prov: %d, conn_state: %d",do_prov, conn_state);
+
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+
 
     /* Initialize event group */
     s_wifi_event_group = xEventGroupCreate();
