@@ -45,6 +45,7 @@ function onMessage(event) {
         else document.getElementById('connected').disabled = true;
     } else {
         document.getElementById('connected').disabled = false;
+        document.getElementById('provision').display = none;
     }
     document.getElementById('state').innerHTML = state + ':' + AP + ':' +  document.getElementById('connected').checked;
 
