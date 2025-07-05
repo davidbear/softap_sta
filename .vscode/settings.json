@@ -8,7 +8,7 @@
   "idf.adapterSpeed": "2000",
   "idf.customExtraPaths": "/home/david/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/",
   "idf.customExtraVars": {
-    "IDF_PATH": "/home/david/esp/v5.4.1/esp-idf",
+    "IDF_PATH": "/home/david/esp/v5.4.2/esp-idf",
     "IDF_TARGET": "esp32s3"
   },
   "idf.pythonBinPath": "/usr/bin/python3",
@@ -29,5 +29,14 @@
     "provisioning.h": "c",
     "spiffs_file_server.h": "c"
   },
-  "C_Cpp.errorSquiggles": "disabled"
+  "C_Cpp.errorSquiggles": "disabled",
+  "idf.espIdfPath": "/home/david/esp/v5.4.2/esp-idf",
+  "idf.toolsPath": "/home/david/.espressif",
+  "idf.pythonInstallPath": "/usr/bin/python",
+  "clangd.path": "/home/david/.espressif/tools/esp-clang/esp-18.1.2_20240912/esp-clang/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=/home/david/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc",
+    "--compile-commands-dir=/home/david/esp/projects/softap_sta-1/build"
+  ]
 }
