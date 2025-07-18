@@ -4,6 +4,7 @@
 #include "esp_log.h"
 
 static const char *TAG = "LED_control"; // TAG for debug
+
 #ifdef CONFIG_BLINK_LED_STRIP
 
 static led_strip_handle_t led_strip;
@@ -68,13 +69,13 @@ void blink_led(void)
         led_strip_set_pixel(led_strip, 0, red, green, blue);
         /* Refresh the strip to send data */
         led_strip_refresh(led_strip);
+        hue += 6;
+        hue %= 360;
     }
     else
     {
         /* Set all LED off to clear all pixels */
         led_strip_clear(led_strip);
-        hue += 6;
-        hue %= 360;
     }
 }
 

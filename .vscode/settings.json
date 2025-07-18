@@ -27,7 +27,8 @@
     "*.inc": "c",
     "softap_sta.h": "c",
     "provisioning.h": "c",
-    "spiffs_file_server.h": "c"
+    "spiffs_file_server.h": "c",
+    "led_strip.h": "c"
   },
   "C_Cpp.errorSquiggles": "disabled",
   "idf.espIdfPath": "/home/david/esp/v5.4.2/esp-idf",

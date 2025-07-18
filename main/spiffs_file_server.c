@@ -146,6 +146,10 @@ static void ws_async_send(void *arg)
     make_send_packet(arg, buff);
 
     memset(buff, 0, sizeof(buff));
+    sprintf(buff, "sntp:%d",sta_state);
+    make_send_packet(arg, buff);
+
+    memset(buff, 0, sizeof(buff));
     struct timeval tv;
     gettimeofday(&tv, NULL);
     long long js_time = tv.tv_sec*1000+tv.tv_usec/1000;
