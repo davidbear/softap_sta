@@ -1,7 +1,7 @@
 #include "nvs_utils.h"
 
 #define TAG "nvs_utils"
-#define NVS_NAMESPACE "storage"
+#define NVS_NAMESPACE "nvs"
 
 esp_err_t write_uint8_to_nvs(const char *key, uint8_t value) {
     nvs_handle_t nvs_handle;
@@ -74,4 +74,20 @@ esp_err_t read_bool_from_nvs(const char *key, bool *value) {
 
     nvs_close(nvs_handle);
     return err;
+}
+
+esp_err_t check_nvs(const char* name, bool* var) 
+{
+    esp_err_t ret_flag = read_bool_from_nvs(name, var);
+    if(ret_flag != ESP_OK) {
+        if(ret_flag == ESP_ERR_NVS_NOT_FOUND) {
+            *var = false;
+            ret_flag = write_uint8_to_nvs(name, *var);
+            ESP_LOGI(TAG,"%s not found, set to %d", name, *var);
+        } else {
+            ESP_LOGE(TAG,"%s read_uint8_from_nvs error: %d",name, ret_flag);
+            return ret_flag;
+        }
+    }
+    return ret_flag;
 }

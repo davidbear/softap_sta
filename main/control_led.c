@@ -7,7 +7,7 @@ static const char *TAG = "LED_control"; // TAG for debug
 
 #ifdef CONFIG_BLINK_LED_STRIP
 
-static led_strip_handle_t led_strip;
+led_strip_handle_t led_strip;
 
 void led_strip_hsv2rgb(uint32_t h, uint32_t s, uint32_t v, uint32_t *r, uint32_t *g, uint32_t *b)
 {

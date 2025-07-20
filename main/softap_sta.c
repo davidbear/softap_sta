@@ -15,11 +15,14 @@
 #include "timekeeper.h"
 #include "provisioning.h"
 #include "nvs_utils.h"
+#include "led_strip.h"
 
+esp_netif_t *wifi_init_sta(void);
 
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
 
+extern led_strip_handle_t led_strip;
 static int s_retry_num = 0;
 httpd_handle_t server = NULL;
 bool led_state = false;
@@ -45,6 +48,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
             wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
             ESP_LOGI(TAG_AP, "Station " MACSTR " joined, AID=%d",
                      MAC2STR(event->mac), event->aid);
+            write_uint8_to_nvs("my_provision", true);
             break;
         case WIFI_EVENT_STA_START:
             esp_wifi_connect();
@@ -59,6 +63,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
             {
                 ESP_LOGI(TAG_STA, "NAPT disabled after STA disconnect");
             }
+//            write_uint8_to_nvs("my_provision", false);
+            vTaskDelay(10);
+            wifi_init_sta();
         }
     }
     else if (event_base == IP_EVENT)
@@ -170,8 +177,45 @@ esp_netif_t *wifi_init_sta(void)
         },
     };
 
-    ESP_ERROR_CHECK(wifi_prov_mgr_is_provisioned(&provisioned));
-    if(provisioned) {
+    bool my_provision= false;
+    ESP_ERROR_CHECK(wifi_prov_mgr_is_provisioned(&my_provision));
+    memset(&wifi_sta_config, 0, sizeof(wifi_config_t));
+    vTaskDelay(pdMS_TO_TICKS(10));  // 10 millisecond
+    esp_err_t get_config_ret = esp_wifi_get_config (WIFI_IF_STA, &wifi_sta_config);
+    vTaskDelay(pdMS_TO_TICKS(10));  // 10 millisecond
+    if(get_config_ret != 0) {
+        ESP_LOGE(TAG_STA,"Error getting provisions -> %d", get_config_ret);
+    }
+    ESP_LOGI("Compare", "%s == %s ? %d:%d ", EXAMPLE_ESP_WIFI_STA_SSID,
+                            wifi_sta_config.sta.ssid,
+                            strncmp(EXAMPLE_ESP_WIFI_STA_SSID, (char *)wifi_sta_config.sta.ssid, 63),
+                        my_provision);
+    if(strncmp(EXAMPLE_ESP_WIFI_STA_SSID, (char *)wifi_sta_config.sta.ssid, 63)) {
+        ESP_LOGI(TAG_STA,"Provisioned SSID: %s",wifi_sta_config.sta.ssid);
+        ESP_LOGI(TAG_STA,"Provisioned password: %s",wifi_sta_config.sta.password);
+        write_uint8_to_nvs("my_provision", true);
+        provisioned = true;
+        led_strip_set_pixel(led_strip, 0, 0, 63, 63);
+        led_strip_refresh(led_strip);
+    }
+    else {
+        ESP_LOGI(TAG_STA,"Not Provisioned using defaults");
+        if(provisioned) {
+            led_strip_set_pixel(led_strip, 0, 0, 63, 0);
+//  Refresh the strip to send data
+            led_strip_refresh(led_strip);
+
+            write_uint8_to_nvs("my_provision", false);
+            esp_restart();
+        }
+        provisioned = false;
+            led_strip_set_pixel(led_strip, 0, 63, 0, 63);
+//  Refresh the strip to send data
+            led_strip_refresh(led_strip);
+            led_state = true;
+    }
+/*    
+    if(my_provision) {
         memset(&wifi_sta_config, 0, sizeof(wifi_config_t));
         esp_err_t get_config_ret = esp_wifi_get_config (WIFI_IF_STA, &wifi_sta_config);
         if(get_config_ret != 0) {
@@ -179,11 +223,18 @@ esp_netif_t *wifi_init_sta(void)
         }
         ESP_LOGI(TAG_STA,"Provisioned SSID: %s",wifi_sta_config.sta.ssid);
         ESP_LOGI(TAG_STA,"Provisioned password: %s",wifi_sta_config.sta.password);
+        write_uint8_to_nvs("my_provision", true);
+        provisioned = true;
     }
     else {
         ESP_LOGI(TAG_STA,"Not Provisioned using defaults");
+        if(provisioned) {
+            write_uint8_to_nvs("my_provision", false);
+            esp_restart();
+        }
+        provisioned = false;
     }
-
+*/
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config) );
 
     ESP_LOGI(TAG_STA, "wifi_init_sta finished.");
@@ -213,39 +264,30 @@ void start_mdns_service(void) {
 
 void app_main(void)
 {
+    // Configure LEDs 
+    configure_led();
+    ESP_LOGI(TAG_AP,"LED configured");
+
     //Initialize NVS
     esp_err_t ret = nvs_flash_init();
     ESP_LOGI(TAG_STA,"nvs_init %d",ret);
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
+        ESP_LOGI("NVS","Errased Flash, %d", ret);
     }
     ESP_ERROR_CHECK(ret);
+    ESP_ERROR_CHECK(check_nvs("do_prov", &do_prov));
+    ESP_ERROR_CHECK(check_nvs("conn_state", &conn_state));
+    ESP_ERROR_CHECK(check_nvs("my_provision", &provisioned));
 
-    esp_err_t ret_flag = read_bool_from_nvs("do_prov", &do_prov);
-    if(ret_flag != ESP_OK) {
-        if(ret_flag == ESP_ERR_NVS_NOT_FOUND) {
-            do_prov = false;
-            ret_flag = write_uint8_to_nvs("do_prov", do_prov);
-            ESP_LOGI(TAG_AP,"do_prov not found, set to %d", do_prov);
-        } else {
-            ESP_LOGE(TAG_AP,"read_uint8_from_nvs error: %d",ret_flag);
-            return;
-        }
-    }
-    ret_flag = read_bool_from_nvs("conn_state", &conn_state);
-    if(ret_flag == ESP_ERR_NVS_NOT_FOUND ) {
-        conn_state = true;
-        ret_flag = write_uint8_to_nvs("conn_state", conn_state);
-    } else if (ret_flag != ESP_OK) {
-        ESP_LOGE(TAG_AP,"read/write_uint8_from_nvs error: %d",ret_flag);
-        return;
-    }
-    ESP_LOGI(TAG_STA,"do_prov: %d, conn_state: %d",do_prov, conn_state);
+    ESP_LOGI(TAG_STA,"do_prov: %d, conn_state: %d, provisioned: %d",do_prov, conn_state, provisioned);
 
     if(do_prov) {
         ESP_LOGI(TAG_AP,"Provisioning Begins...");
-        ret_flag = write_uint8_to_nvs("do_prov", false);
+        ESP_ERROR_CHECK(write_uint8_to_nvs("do_prov", false)); // esp_err_t ret_flag = 
+        ESP_ERROR_CHECK(write_uint8_to_nvs("conn_state", true)); // esp_err_t ret_flag = 
+        ESP_ERROR_CHECK(write_uint8_to_nvs("my_provision", true)); // esp_err_t ret_flag = 
         for(int i=10;i>0;--i) {
             vTaskDelay(pdMS_TO_TICKS(1000));  // 1 second
             printf("%d\n",i);
@@ -303,10 +345,6 @@ void app_main(void)
         return;
     }
 
-    // Configure LEDs 
-    configure_led();
-    ESP_LOGI(TAG_AP,"Server started and LED configured");
-
     /*
      * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
      * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
@@ -324,6 +362,7 @@ void app_main(void)
     {
         ESP_LOGI(TAG_STA, "Connected to STA network, setting DNS...");
         softap_set_dns_addr(g_esp_netif_ap, esp_netif_sta);
+        write_uint8_to_nvs("my_provision", true);
     }
     else if (bits & WIFI_FAIL_BIT)
     {
@@ -332,6 +371,7 @@ void app_main(void)
     else
     {
         ESP_LOGW(TAG_STA, "No STA event received in timeout. Continuing anyway.");
+        write_uint8_to_nvs("my_provision", false);
     }
     /* Set sta as the default interface */
     esp_netif_set_default_netif(esp_netif_sta);
