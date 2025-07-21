@@ -22,7 +22,8 @@ esp_netif_t *wifi_init_sta(void);
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
 
-extern led_strip_handle_t led_strip;
+extern led_strip_handle_t rgb_led;
+// extern led_strip_handle_t led_strip;
 static int s_retry_num = 0;
 httpd_handle_t server = NULL;
 bool led_state = false;
@@ -195,23 +196,23 @@ esp_netif_t *wifi_init_sta(void)
         ESP_LOGI(TAG_STA,"Provisioned password: %s",wifi_sta_config.sta.password);
         write_uint8_to_nvs("my_provision", true);
         provisioned = true;
-        led_strip_set_pixel(led_strip, 0, 0, 63, 63);
-        led_strip_refresh(led_strip);
+        led_strip_set_pixel(rgb_led, 0, 0, 63, 63);
+        led_strip_refresh(rgb_led);
     }
     else {
         ESP_LOGI(TAG_STA,"Not Provisioned using defaults");
         if(provisioned) {
-            led_strip_set_pixel(led_strip, 0, 0, 63, 0);
+            led_strip_set_pixel(rgb_led, 0, 0, 63, 0);
 //  Refresh the strip to send data
-            led_strip_refresh(led_strip);
+            led_strip_refresh(rgb_led);
 
             write_uint8_to_nvs("my_provision", false);
             esp_restart();
         }
         provisioned = false;
-            led_strip_set_pixel(led_strip, 0, 63, 0, 63);
+            led_strip_set_pixel(rgb_led, 0, 63, 0, 63);
 //  Refresh the strip to send data
-            led_strip_refresh(led_strip);
+            led_strip_refresh(rgb_led);
             led_state = true;
     }
 /*    

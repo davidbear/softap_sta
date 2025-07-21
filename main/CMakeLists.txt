@@ -7,6 +7,7 @@ idf_component_register(
             "timekeeper.c"
             "provisioning.c"
             "nvs_utils.c"
+            "lights.c"
         INCLUDE_DIRS "."
         REQUIRES 
             esp_http_server 

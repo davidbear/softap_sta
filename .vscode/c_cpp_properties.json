@@ -3,8 +3,9 @@
         {
             "name": "ESP-IDF",
             "includePath": [
-                "${config:idf.espIdfPath}/components/**",
                 "${workspaceFolder}/**",
+                "${workspaceFolder}/build/config",
+                "${config:idf.espIdfPath}/components/**",
                 "${config:idf.espIdfPath}/components/nvs_flash/**"
             ],
             "defines": [
