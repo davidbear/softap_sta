@@ -161,7 +161,10 @@ esp_netif_t *wifi_init_softap(void)
 /* Initialize wifi station */
 esp_netif_t *wifi_init_sta(void)
 {
-    esp_netif_t *esp_netif_sta = esp_netif_create_default_wifi_sta();
+    static esp_netif_t *esp_netif_sta = NULL;
+    if(esp_netif_sta == NULL) {
+        esp_netif_sta = esp_netif_create_default_wifi_sta();
+    }
     assert(esp_netif_sta);
     esp_netif_set_hostname(esp_netif_sta, "clr_clk");
 

@@ -170,6 +170,6 @@ void init_provisioning(void) {
     };
 //    config.wifi_prov_conn_cfg = {};
 
-    ESP_ERROR_CHECK(wifi_prov_mgr_init(config));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(wifi_prov_mgr_init(config));
 }
 
