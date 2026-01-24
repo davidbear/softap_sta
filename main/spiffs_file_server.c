@@ -133,7 +133,7 @@ static void ws_async_send(void *arg)
 //    int fd = resp_arg->fd;
 
 //    gpio_set_level(LED_PIN, led_state);
-    blink_led();
+    toggle_rgb_led();
     
     char buff[40];
 
@@ -340,8 +340,7 @@ httpd_handle_t start_spiffs_webserver(httpd_handle_t *server) {
     config.stack_size = 8192;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
-#if defined(CONFIG_HTTPD_WS_SUPPORT) && defined(CONFIG_IDF_TARGET_ESP32)
-    config.enable_websocket = true;
+#if defined(CONFIG_HTTPD_WS_SUPPORT) && defined(CONFIG_IDF_TARGET_ESP32S3)
     ESP_LOGI(TAG, "WebSocket support enabled in config");
 #else
     ESP_LOGW(TAG, "WebSocket support not enabled in SDK");

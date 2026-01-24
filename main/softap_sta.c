@@ -23,7 +23,7 @@ static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
 
 extern led_strip_handle_t rgb_led;
-// extern led_strip_handle_t led_strip;
+// extern led_strip_handle_t strip_leds;
 static int s_retry_num = 0;
 httpd_handle_t server = NULL;
 bool led_state = false;
@@ -348,7 +348,12 @@ void app_main(void)
         ESP_LOGE(TAG_AP,"Failed to start server");
         return;
     }
-
+/*
+*   This might be a good time to xTaskCreate(Blink_Task, "Blinking", 4096, NULL, 10, &BlinkHandle);)
+*/  
+    TaskHandle_t BlinkHandle = NULL;
+    
+    xTaskCreate(Blink_Task, "Blinking", 4096, NULL, 10, &BlinkHandle);
     /*
      * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
      * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).

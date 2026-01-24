@@ -10,7 +10,7 @@ uint32_t sec_color = 0xFF0000;
 uint32_t min_color = 0x0;
 uint32_t hour_color = 0x0;
 
-extern led_strip_handle_t led_strip;
+extern led_strip_handle_t strip_leds;
 
 void init_clock(void)
 {

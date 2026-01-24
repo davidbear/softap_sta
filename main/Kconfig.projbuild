@@ -92,7 +92,7 @@ menu "Example Configuration"
     menu "LED Configuration"
         choice BLINK_LED
             prompt "Blink LED type"
-            default BLINK_LED_GPIO
+            default BLINK_LED_STRIP
             help
                 Select the LED type. A normal level controlled LED or an addressable LED strip.
                 The default selection is based on the Espressif DevKit boards.
@@ -106,7 +106,7 @@ menu "Example Configuration"
 
         config LED_BRIGHTNESS
             depends on BLINK_LED_STRIP
-            int "LED BRIGHTNESS"
+            int "Board LED BRIGHTNESS"
             range 1 100
             default 25
             help
@@ -126,6 +126,22 @@ menu "Example Configuration"
             config BLINK_LED_STRIP_BACKEND_SPI
                 bool "SPI"
         endchoice
+
+        config N_LEDS
+            depends on BLINK_LED_STRIP
+            int "Number of LEDs in strip"
+            range 1 255
+            default 8
+            help
+            Define the number of LEDs.
+
+        config BRIGHTNESS
+            depends on BLINK_LED_STRIP
+            int "Strip Brightness"
+            range 1 100
+            default 25
+            help
+                How bright are the LEDs (1-100).
 
         config BLED_GPIO
             int "Board LED GPIO number"
