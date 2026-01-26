@@ -4,14 +4,14 @@
     "interface/ftdi/esp32_devkitj_v1.cfg",
     "target/esp32s3.cfg"
   ],
-  "idf.flashType": "UART",
+  "idf.flashType": "JTAG",
   "idf.adapterSpeed": "2000",
-  "idf.customExtraPaths": "/home/david/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/",
+  "idf.customExtraPaths": "/home/david/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20251107/xtensa-esp-elf/bin/",
   "idf.customExtraVars": {
-    "IDF_PATH": "/home/david/esp/v5.5.0",
+    "IDF_PATH": "/home/david/esp/v5.5.2",
     "IDF_TARGET": "esp32s3"
   },
-  "idf.pythonBinPath": "/usr/bin/python3",
+  "idf.pythonBinPath": "/home/david/.espressif/python_env/idf5.5_py3.12_env/bin/python",
   "files.associations": {
     "inet.h": "c",
     "esp_vfs.h": "c",
@@ -32,13 +32,13 @@
     "sdkconfig.h": "c"
   },
   "C_Cpp.errorSquiggles": "disabled",
-  "idf.espIdfPath": "/home/david/esp/v5.5.0",
+  "idf.espIdfPath": "/home/david/esp/v5.5.2",
   "idf.toolsPath": "/home/david/.espressif",
   "idf.pythonInstallPath": "/usr/bin/python",
-  "clangd.path": "/home/david/.espressif/tools/esp-clang/esp-18.1.2_20240912/esp-clang/bin/clangd",
+  "clangd.path": "/home/david/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/bin/clangd",
   "clangd.arguments": [
     "--background-index",
-    "--query-driver=/home/david/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc",
+    "--query-driver=**",
     "--compile-commands-dir=/home/david/esp/projects/softap_sta-1/build"
   ]
 }
