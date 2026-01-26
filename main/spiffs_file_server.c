@@ -12,6 +12,7 @@ extern bool led_state;
 extern bool conn_state;
 extern bool sta_state;
 extern esp_netif_t *g_esp_netif_ap;
+extern int16_t my_zone;
 
 struct async_resp_arg {
     httpd_handle_t hd;
@@ -276,7 +277,8 @@ esp_err_t handle_ws_req(httpd_req_t *req)
         if (strncmp(payload, "timeoff:", 8) == 0) {
             int my_offset = strtod(payload + 8, NULL);
             if(abs(my_offset) < 6000) {
-                int my_zone = my_offset / 60;
+                my_zone = my_offset / 60;
+                write_nvs_integer(NVS_TYPE_I16, "my_zone", my_offset);
                 char buf_zone[32];
                 sprintf(buf_zone, "GMT%c%02d:%02d",my_zone>=0?'+':'-',abs(my_zone),
                     my_zone*60-my_offset);

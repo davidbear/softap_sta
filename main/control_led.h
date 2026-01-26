@@ -14,6 +14,10 @@
 #define N_LEDS CONFIG_N_LEDS
 
 extern bool led_state;
+extern uint16_t sec_hue;
+extern uint16_t min_hue;
+extern uint16_t hour_hue;
+
 
 void led_strip_rgb2hsv(uint32_t r, uint32_t g, uint32_t b, uint32_t *h, uint32_t *s, uint32_t *v);
 void led_strip_hsv2rgb(uint32_t h, uint32_t s, uint32_t v, uint32_t *r, uint32_t *g, uint32_t *b);

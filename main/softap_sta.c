@@ -21,6 +21,7 @@ esp_netif_t *wifi_init_sta(void);
 
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
+static const char *TAG = "SoftAP_STA";
 
 extern led_strip_handle_t rgb_led;
 // extern led_strip_handle_t strip_leds;
@@ -31,6 +32,11 @@ bool conn_state = true;
 bool sta_state = false;
 bool do_prov = false;
 bool provisioned = false;
+uint16_t sec_hue = 0;
+uint16_t min_hue = 120;
+uint16_t hour_hue = 240;
+int16_t my_zone = 0;
+
 
 // Global AP netif pointer (for use in handlers)
 esp_netif_t *g_esp_netif_ap = NULL;
@@ -218,27 +224,6 @@ esp_netif_t *wifi_init_sta(void)
             led_strip_refresh(rgb_led);
             led_state = true;
     }
-/*    
-    if(my_provision) {
-        memset(&wifi_sta_config, 0, sizeof(wifi_config_t));
-        esp_err_t get_config_ret = esp_wifi_get_config (WIFI_IF_STA, &wifi_sta_config);
-        if(get_config_ret != 0) {
-            ESP_LOGE(TAG_STA,"Error getting provisions -> %d", get_config_ret);
-        }
-        ESP_LOGI(TAG_STA,"Provisioned SSID: %s",wifi_sta_config.sta.ssid);
-        ESP_LOGI(TAG_STA,"Provisioned password: %s",wifi_sta_config.sta.password);
-        write_uint8_to_nvs("my_provision", true);
-        provisioned = true;
-    }
-    else {
-        ESP_LOGI(TAG_STA,"Not Provisioned using defaults");
-        if(provisioned) {
-            write_uint8_to_nvs("my_provision", false);
-            esp_restart();
-        }
-        provisioned = false;
-    }
-*/
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config) );
 
     ESP_LOGI(TAG_STA, "wifi_init_sta finished.");
@@ -284,6 +269,24 @@ void app_main(void)
     ESP_ERROR_CHECK(check_nvs("do_prov", &do_prov));
     ESP_ERROR_CHECK(check_nvs("conn_state", &conn_state));
     ESP_ERROR_CHECK(check_nvs("my_provision", &provisioned));
+    uint32_t temp = (uint32_t)sec_hue;
+    ESP_ERROR_CHECK(read_nvs_integer(NVS_TYPE_U16, "sec_hue", &temp));
+    sec_hue = (uint16_t)temp;
+    temp = (uint32_t)min_hue;
+    ESP_ERROR_CHECK(read_nvs_integer(NVS_TYPE_U16, "min_hue", &temp));
+    min_hue = (uint16_t)temp;
+    temp = (uint32_t)hour_hue;
+    ESP_ERROR_CHECK(read_nvs_integer(NVS_TYPE_U16, "hour_hue", &temp));
+    hour_hue = (uint16_t)temp;
+    temp = my_zone;
+    ESP_ERROR_CHECK(read_nvs_integer(NVS_TYPE_I16, "my_zone", &temp));
+    my_zone = (int16_t)temp;
+    char buf_zone[32];
+    sprintf(buf_zone, "GMT%c%02d:%02d",my_zone>=0?'+':'-',abs(my_zone/60),
+        abs(my_zone)%60);
+    ESP_LOGI(TAG, "TZ: %s", buf_zone);
+    setenv("TZ", buf_zone, 1);
+    tzset();
 
     ESP_LOGI(TAG_STA,"do_prov: %d, conn_state: %d, provisioned: %d",do_prov, conn_state, provisioned);
 
@@ -352,7 +355,7 @@ void app_main(void)
 *   This might be a good time to xTaskCreate(Blink_Task, "Blinking", 4096, NULL, 10, &BlinkHandle);)
 */  
     TaskHandle_t BlinkHandle = NULL;
-    
+
     xTaskCreate(Blink_Task, "Blinking", 4096, NULL, 10, &BlinkHandle);
     /*
      * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
