@@ -228,7 +228,7 @@ esp_err_t handle_ws_req(httpd_req_t *req)
     httpd_ws_frame_t ws_pkt = { .type = HTTPD_WS_TYPE_TEXT };
     esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get frame length: %d", ret);
+        ESP_LOGW(TAG, " Failed to get frame: %s", esp_err_to_name(ret));
         return ret;
     }
 

@@ -4,7 +4,7 @@
     "interface/ftdi/esp32_devkitj_v1.cfg",
     "target/esp32s3.cfg"
   ],
-  "idf.flashType": "JTAG",
+  "idf.flashType": "UART",
   "idf.adapterSpeed": "2000",
   "idf.customExtraPaths": "/home/david/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20251107/xtensa-esp-elf/bin/",
   "idf.customExtraVars": {
@@ -40,5 +40,6 @@
     "--background-index",
     "--query-driver=**",
     "--compile-commands-dir=/home/david/esp/projects/softap_sta-1/build"
-  ]
+  ],
+  "idf.currentSetup": "/home/david/esp/v5.5.2"
 }
